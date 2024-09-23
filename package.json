@@ -1,0 +1,15 @@
+{
+  "name": "clockdreamer",
+  "version": "1.0.0",
+  "description": "This is our repo for the Clock Dreamer game inspired by Honkai StarRail DLC.",
+  "main": "app.js",
+  "dependencies": {
+    "three": "^0.168.0"
+  },
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
