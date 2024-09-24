@@ -8,5 +8,13 @@ You may need to fun the following commands to init the repo:
 
 ```bash
 npm init -y
-npm install three
+npm install --save three
 ```
+
+Also, for smoother module import experiencce, use the following command:
+
+```bash
+npm install --save-dev vite
+npx vite
+```
+Then you can click on the link that pops up from the console to directly access the HTML file!~
