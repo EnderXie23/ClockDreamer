@@ -1,4 +1,5 @@
-import * as THREE from './node_modules/three/build/three.module.js';
+import * as THREE from 'three';
+// import {OrbitControls} from 'three/addons';
 
 // Create scene
 const scene = new THREE.Scene();
@@ -17,6 +18,13 @@ camera.lookAt(1, 3, 0); // Point the camera at the origin
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
+
+// Add controls
+// const controls = new OrbitControls(camera, renderer.domElement);
+
+// Create Raycaster and mouse vector
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
 
 // Load texture for background
 const loader = new THREE.TextureLoader();
@@ -46,18 +54,15 @@ const redBlock = new THREE.Mesh(redBlockGeometry, blockMaterialRed);
 redBlock.position.set(-1, 0, -2);
 scene.add(redBlock);
 
-// Add a basic ground
-// const groundGeometry = new THREE.PlaneGeometry(20, 20);
-// const groundMaterial = new THREE.MeshBasicMaterial({ color: 0x333333, side: THREE.DoubleSide });
-// const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-// ground.rotation.x = Math.PI / 2;
-// scene.add(ground);
-
-// Scene render loop
+// Global variables for animation
 let animationInProgress = false;
 let totalRotation = 0;
 let targetRotation = 0;
+let rotationDirection = 1;
+let dragging = false;
+let selectedObject = null;
 
+// Scene render loop
 function animate() {
     let rotationSpeed = Math.PI / 60;
     if (targetRotation < 0) {
@@ -108,34 +113,76 @@ createTrail();
 animate();
 
 // Keyboard event listener
-document.addEventListener('keydown', (event) => {
-    const key = event.key;
+window.addEventListener('mousedown', onMouseDown, false);
+window.addEventListener('mousemove', onMouseMove, false);
+window.addEventListener('mouseup', onMouseUp, false);
 
-    // Move yellow block left
-    if (key === 'a') {
-        if (yellowBlock.position.z > -5)
-            yellowBlock.position.z -= 1;
-    }
-    // Move yellow block right
-    if (key === 'd') {
-        if (yellowBlock.position.z < -1)
-            yellowBlock.position.z += 1;
-    }
+// Handle mouse down event (selecting objects)
+function onMouseDown(event) {
+    event.preventDefault();
 
-    // Move red block left
-    if (key === 'j') {
-        if (!animationInProgress && redBlock.rotation.y < Math.PI - 0.01) {
-            totalRotation = 0;
-            targetRotation = Math.PI / 2;
-            animationInProgress = true;
+    // Calculate mouse position in normalized device coordinates (-1 to +1)
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    console.log(mouse.x, mouse.y);
+
+    // Update the raycaster with camera and mouse position
+    raycaster.setFromCamera(mouse, camera);
+
+    // Check if we intersect with the yellow or red block
+    const intersects = raycaster.intersectObjects([yellowBlock, redBlock]);
+
+    if (intersects.length > 0) {
+        selectedObject = intersects[0].object;
+
+        if (selectedObject === yellowBlock) {
+            // Start dragging the yellow block
+            dragging = true;
+        } else if (selectedObject === redBlock) {
+            // Check if the red block can rotate
+            let rotLim = rotationDirection === 1 ? redBlock.rotation.y < Math.PI - 0.01 : redBlock.rotation.y > 0.01;
+            // Perform rotation on the red block
+            if (!rotLim)
+                rotationDirection *= -1;
+            if (!animationInProgress) {
+                totalRotation = 0;
+                targetRotation = rotationDirection * Math.PI / 2;
+                animationInProgress = true;
+            }
         }
     }
-    // Move red block right
-    if (key === 'l') {
-        if (!animationInProgress && redBlock.rotation.y > 0.01) {
-            totalRotation = 0;
-            targetRotation = -Math.PI / 2;
-            animationInProgress = true;
-        }
+}
+
+// Handle mouse move event (dragging the yellow block)
+function onMouseMove(event) {
+    if (!dragging || selectedObject !== yellowBlock) return;
+
+    // Calculate mouse position in normalized device coordinates (-1 to +1)
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    // Update raycaster to match the new mouse position
+    raycaster.setFromCamera(mouse, camera);
+
+    // Create a plane for dragging along the Z-axis
+    const plane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+
+    // Use raycaster to find intersection point on the plane
+    const intersectionPoint = new THREE.Vector3();
+    raycaster.ray.intersectPlane(plane, intersectionPoint);
+
+    // Align the yellow block to the Z-axis of the intersection point
+    yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 4, -1), -5);
+}
+
+// Handle mouse up event (stop dragging)
+function onMouseUp() {
+    dragging = false;
+
+    if (selectedObject === yellowBlock) {
+        // Snap the yellow block to the nearest grid position
+        yellowBlock.position.z = Math.round(yellowBlock.position.z);
     }
-});
+
+    selectedObject = null;
+}
