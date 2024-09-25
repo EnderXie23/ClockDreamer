@@ -6,13 +6,16 @@ const scene = new THREE.Scene();
 
 // Create camera
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(10, 10, 10);
+camera.position.set(0, 0, 15);
 
 // Rotate camera
-const angle = THREE.MathUtils.degToRad(0);
-const rotationMatrix = new THREE.Matrix4().makeRotationY(-angle); // Apply negative angle for clockwise rotation
-camera.applyMatrix4(rotationMatrix); // Apply the rotation to the camera
-camera.lookAt(1, 3, 0); // Point the camera at the origin
+const angleY = THREE.MathUtils.degToRad(-30);
+const rotationMatrixY = new THREE.Matrix4().makeRotationY(-angleY); // Apply negative angle for clockwise rotation
+camera.applyMatrix4(rotationMatrixY); // Apply the rotation to the camera
+const angleZ = THREE.MathUtils.degToRad(-45);
+const rotationMatrixZ = new THREE.Matrix4().makeRotationZ(-angleZ);
+camera.applyMatrix4(rotationMatrixZ);
+camera.lookAt(0, 0, 0); // Point the camera at the origin
 
 // Create renderer
 const renderer = new THREE.WebGLRenderer();
@@ -62,15 +65,14 @@ const blueBlock = new THREE.Mesh(blueBlockGeometry, blockMaterialBlue);
 blueBlock.position.set(-1, 0, -8);
 scene.add(blueBlock);
 
+// Blue block 2 is a placeholder for the reflection
 const blueBlock2 = new THREE.Mesh(blueBlockGeometry, blockMaterialBlue);
 blueBlock2.position.set(-1, 0, -8);
 scene.add(blueBlock2);
 
 // Create mirror
+const mirrorWidth = 70;
 const mirrorHeight = 70;
-const mirrorWidth =70;
-// const scaleFactorWidth = 1;
-// const scaleFactorHeight = 1;
 const scaleFactorWidth = mirrorWidth / window.innerWidth;
 const scaleFactorHeight = mirrorHeight / window.innerHeight;
 const mirrorGeometry = new THREE.PlaneGeometry(mirrorWidth * scaleFactorWidth, mirrorHeight * scaleFactorHeight);
@@ -84,8 +86,8 @@ const reflectionRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth, wi
 // const reflectionRenderTarget = new THREE.WebGLRenderTarget(mirrorWidth* 100, mirrorHeight*100);
 const mirrorCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 // const mirrorCamera = new THREE.PerspectiveCamera(45, mirrorWidth / mirrorHeight, 0.1, 1000);
-mirrorCamera.position.set(10, 10, 10);
-mirrorCamera.lookAt(1, 3, 1);
+mirrorCamera.position.set(0, 0, 15);
+mirrorCamera.lookAt(0, 0, 0);
 
 // Layer configuration
 const MAIN_LAYER = 0;
@@ -95,7 +97,6 @@ yellowBlock.layers.set(MAIN_LAYER);
 redBlock.layers.set(MAIN_LAYER);
 mirror.layers.set(MAIN_LAYER);
 blueBlock.layers.set(REFLECTION_LAYER);
-// blueBlock.layers.set(MAIN_LAYER);
 mirrorCamera.layers.set(REFLECTION_LAYER);
 
 // Global variables for animation
@@ -107,21 +108,29 @@ let dragging = false;
 let selectedObject = null;
 let needs_log = true;
 
-function adjustMirrorView() {
-    const rotationAngle = 0;
-    const radians = THREE.MathUtils.degToRad(rotationAngle);
+function renderMirrorView() {
+    const ratioX = 0.00973;
+    const ratioY = 0.0179;
 
-    const uRepeat = scaleFactorWidth;
-    const vRepeat = scaleFactorHeight;
+    renderer.setRenderTarget(reflectionRenderTarget);
+    renderer.clear();
+    renderer.render(scene, mirrorCamera);
 
-    const uOffset = (1 - uRepeat) / 2;
-    const vOffset = (1 - vRepeat) / 2;
+    reflectionRenderTarget.texture.wrapS = THREE.RepeatWrapping;
+    reflectionRenderTarget.texture.wrapT = THREE.RepeatWrapping;
+    mirror.material = new THREE.MeshBasicMaterial({
+        map: reflectionRenderTarget.texture,
+        side: THREE.DoubleSide,
+    });
 
-    const rotatedOffsetX = (uOffset - 0.5) * Math.cos(radians) - (vOffset - 0.5) * Math.sin(radians);
-    const rotatedOffsetY = (uOffset - 0.5) * Math.sin(radians) + (vOffset - 0.5) * Math.cos(radians);
+    const uOffset = window.innerWidth / 2;
+    const vOffset = window.innerHeight / 2 - mirrorHeight / 2;
 
-    mirror.material.map.offset.set(rotatedOffsetX + 0.5, rotatedOffsetY + 0.5);
-    mirror.material.map.repeat.set(uRepeat, vRepeat);
+    // mirror.material.map.offset.set(uOffset / window.innerWidth, vOffset / window.innerHeight);
+    // mirror.material.map.repeat.set(scaleFactorWidth*3, scaleFactorHeight*3);
+    // mirror.material.map.repeat.set(ratioX, ratioY);
+
+    renderer.setRenderTarget(null);
 }
 
 // Main scene render loop
@@ -145,43 +154,26 @@ function animate() {
     renderer.render(scene, camera);
 
     // Render the mirror scene
-    renderer.setRenderTarget(reflectionRenderTarget);
-    renderer.clear();
-    renderer.render(scene, mirrorCamera);
-    mirror.material = new THREE.MeshBasicMaterial({
-        map: reflectionRenderTarget.texture,
-        side: THREE.DoubleSide,
-    });
-    adjustMirrorView();
+    renderMirrorView();
     if (needs_log) {
-        console.log(reflectionRenderTarget);
-        const image = reflectionRenderTarget.texture['image'];
+        // Put the log here
+        const mirrorPosition = mirror.position.clone();
+        mirrorPosition.project(mirrorCamera);
 
-        if (!image.complete) {
-            // Show the image in console
-            console.log('Texture Image:', image.src);
-        } else {
-            const canvas = document.createElement('canvas');
-            const ctx = canvas.getContext('2d');
+        const x = (mirrorPosition.x * 0.5 + 0.5) * window.innerWidth;
+        const y = (mirrorPosition.y * -0.5 + 0.5) * window.innerHeight;
 
-            // Set canvas size to texture size
-            canvas.width = image.width;
-            canvas.height = image.height;
+        console.log(`Mirror screen position: (${x}, ${y})`);
 
-            // Draw the image onto the canvas
-            ctx.drawImage(image, 0, 0);
-
-            // Convert the canvas to a Data URL
-            const dataURL = canvas.toDataURL();
-
-            // Log the Data URL to the console
-            console.log('Texture Image URL:', dataURL);
-        }
+        const worldLength = 7; // Example length in world units
+        const screenWidth = x; // X position calculated above
+        const screenHeight = y; // Y position calculated above
+        const ratioX = worldLength / screenWidth; // Ratio of world length to screen width
+        const ratioY = worldLength / screenHeight; // Ratio of world length to screen height
+        console.log(`scaleFactorWidth: ${scaleFactorWidth}, scaleFactorHeight: ${scaleFactorHeight}`);
+        console.log(`Ratio X: ${ratioX}, Ratio Y: ${ratioY}`);
         needs_log = false;
     }
-
-    renderer.setRenderTarget(null);
-    // renderer.render(scene, camera);
 }
 
 function createTrail() {
@@ -273,7 +265,7 @@ function onMouseMove(event) {
     raycaster.ray.intersectPlane(plane, intersectionPoint);
 
     // Align the yellow block to the Z-axis of the intersection point
-    yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 4, -1), -5);
+    yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 6, -1), -5);
 }
 
 // Handle mouse up event (stop dragging)
