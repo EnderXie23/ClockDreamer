@@ -1,12 +1,13 @@
 import * as THREE from 'three';
-// import {OrbitControls} from 'three/addons';
 
 // Create scene
 const scene = new THREE.Scene();
 
 // Create camera
-const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 15);
+const ratio = 130;
+const camera = new THREE.OrthographicCamera(window.innerWidth / -ratio, window.innerWidth / ratio, window.innerHeight / ratio, window.innerHeight / -ratio, 0.1, 1000);
+// const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+camera.position.set(0, 0, 10);
 
 // Rotate camera
 const angleY = THREE.MathUtils.degToRad(-30);
@@ -17,13 +18,16 @@ const rotationMatrixZ = new THREE.Matrix4().makeRotationZ(-angleZ);
 camera.applyMatrix4(rotationMatrixZ);
 camera.lookAt(0, 0, 0); // Point the camera at the origin
 
+// Translate camera
+const translationMatrix = new THREE.Matrix4().makeTranslation(0, 1.5, 0);
+camera.applyMatrix4(translationMatrix);
+
 // Create renderer
-const renderer = new THREE.WebGLRenderer();
+const renderer = new THREE.WebGLRenderer({stencil: true});
 renderer.setSize(window.innerWidth, window.innerHeight);
 document.body.appendChild(renderer.domElement);
 
 // Add controls
-// const controls = new OrbitControls(camera, renderer.domElement);
 
 // Create Raycaster and mouse vector
 const raycaster = new THREE.Raycaster();
@@ -68,14 +72,12 @@ scene.add(blueBlock);
 // Blue block 2 is a placeholder for the reflection
 const blueBlock2 = new THREE.Mesh(blueBlockGeometry, blockMaterialBlue);
 blueBlock2.position.set(-1, 0, -8);
-scene.add(blueBlock2);
+// scene.add(blueBlock2);
 
 // Create mirror
-const mirrorWidth = 70;
-const mirrorHeight = 70;
-const scaleFactorWidth = mirrorWidth / window.innerWidth;
-const scaleFactorHeight = mirrorHeight / window.innerHeight;
-const mirrorGeometry = new THREE.PlaneGeometry(mirrorWidth * scaleFactorWidth, mirrorHeight * scaleFactorHeight);
+const mirrorWidth = 3;
+const mirrorHeight = 5;
+const mirrorGeometry = new THREE.PlaneGeometry(mirrorWidth, mirrorHeight);
 const mirrorMaterial = new THREE.MeshBasicMaterial({color: 0x000000, side: THREE.DoubleSide});
 const mirror = new THREE.Mesh(mirrorGeometry, mirrorMaterial);
 mirror.position.set(0, 0, -6);
@@ -83,11 +85,12 @@ scene.add(mirror);
 
 // Add mirror camera
 const reflectionRenderTarget = new THREE.WebGLRenderTarget(window.innerWidth, window.innerHeight);
-// const reflectionRenderTarget = new THREE.WebGLRenderTarget(mirrorWidth* 100, mirrorHeight*100);
-const mirrorCamera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
-// const mirrorCamera = new THREE.PerspectiveCamera(45, mirrorWidth / mirrorHeight, 0.1, 1000);
-mirrorCamera.position.set(0, 0, 15);
+const mirrorCamera = new THREE.OrthographicCamera(window.innerWidth / -ratio, window.innerWidth / ratio, window.innerHeight / ratio, window.innerHeight / -ratio, 0.1, 1000);
+mirrorCamera.position.set(0, 0, 10);
+mirrorCamera.applyMatrix4(rotationMatrixY);
+// mirrorCamera.applyMatrix4(rotationMatrixZ);
 mirrorCamera.lookAt(0, 0, 0);
+mirrorCamera.applyMatrix4(translationMatrix);
 
 // Layer configuration
 const MAIN_LAYER = 0;
@@ -108,10 +111,17 @@ let dragging = false;
 let selectedObject = null;
 let needs_log = true;
 
+mirror.material.transparent = true;
+mirror.material.opacity = 0.5;
+
+// mirror.material.depthWrite = false;
+
 function renderMirrorView() {
     const ratioX = 0.00973;
     const ratioY = 0.0179;
 
+    // const ratioX = scaleFactorWidth;
+    // const ratioY = scaleFactorHeight;
     renderer.setRenderTarget(reflectionRenderTarget);
     renderer.clear();
     renderer.render(scene, mirrorCamera);
@@ -123,12 +133,19 @@ function renderMirrorView() {
         side: THREE.DoubleSide,
     });
 
-    const uOffset = window.innerWidth / 2;
-    const vOffset = window.innerHeight / 2 - mirrorHeight / 2;
+    const uOffset = 0;
+    const vOffset = 0;
+    const uRepeat = 1;
+    const vRepeat = 1;
 
-    // mirror.material.map.offset.set(uOffset / window.innerWidth, vOffset / window.innerHeight);
-    // mirror.material.map.repeat.set(scaleFactorWidth*3, scaleFactorHeight*3);
-    // mirror.material.map.repeat.set(ratioX, ratioY);
+    // const uOffset = window.innerWidth / 2 + mirror.position.x / ratioX - mirrorWidth / (2 * ratioX);
+    // const vOffset = window.innerHeight / 2 - mirror.position.y / (2 * ratioY);
+
+    // const uRepeat = mirrorWidth / (window.innerWidth / 2 - mirror.position.x / ratioX + mirrorWidth / ratioX);
+    // const vRepeat = mirrorHeight / (window.innerHeight / 2 - mirror.position.y / (2 * ratioY));
+
+    mirror.material.map.offset.set(uOffset / window.innerWidth, vOffset / window.innerHeight);
+    mirror.material.map.repeat.set(uRepeat, vRepeat);
 
     renderer.setRenderTarget(null);
 }
@@ -150,11 +167,13 @@ function animate() {
         }
     }
 
-    requestAnimationFrame(animate);
+    camera.layers.enable(1);
     renderer.render(scene, camera);
 
+    requestAnimationFrame(animate);
+
     // Render the mirror scene
-    renderMirrorView();
+    // renderMirrorView();
     if (needs_log) {
         // Put the log here
         const mirrorPosition = mirror.position.clone();
@@ -170,7 +189,6 @@ function animate() {
         const screenHeight = y; // Y position calculated above
         const ratioX = worldLength / screenWidth; // Ratio of world length to screen width
         const ratioY = worldLength / screenHeight; // Ratio of world length to screen height
-        console.log(`scaleFactorWidth: ${scaleFactorWidth}, scaleFactorHeight: ${scaleFactorHeight}`);
         console.log(`Ratio X: ${ratioX}, Ratio Y: ${ratioY}`);
         needs_log = false;
     }
@@ -265,7 +283,7 @@ function onMouseMove(event) {
     raycaster.ray.intersectPlane(plane, intersectionPoint);
 
     // Align the yellow block to the Z-axis of the intersection point
-    yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 6, -1), -5);
+    yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 8, -1), -5);
 }
 
 // Handle mouse up event (stop dragging)
