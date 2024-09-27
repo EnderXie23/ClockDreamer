@@ -17,8 +17,6 @@ loader.load('./data/models/firefly.glb', function (gltf) {
 });
 
 // Create camera
-// const ratio = 130;
-// const camera = new THREE.OrthographicCamera(window.innerWidth / -ratio, window.innerWidth / ratio, window.innerHeight / ratio, window.innerHeight / -ratio, 0.1, 1000);
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0, 1);
 
@@ -53,10 +51,14 @@ ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
 scene.add(ground);
 
 // Building
-const buildingGeometry = new THREE.BoxGeometry(1, 20, 1);
-const buildingMaterial = new THREE.MeshBasicMaterial({color: 0x8B4513});
+const buildingGeometry = new THREE.BoxGeometry(1, 5, 1);
+const buildingMaterial = new THREE.MeshBasicMaterial({
+    color: 0x8B4513,
+    transparent: true,
+    opacity: 0.7
+});
 const building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-building.position.set(0, 1, 0); // Position the building
+building.position.set(0, 2, -3); // Position the building
 scene.add(building);
 
 // Fence
@@ -66,11 +68,26 @@ const fence = new THREE.Mesh(fenceGeometry, fenceMaterial);
 fence.position.set(0, 1, 5); // Adjust the position
 scene.add(fence);
 
+// Target mark
+const target = new THREE.Group();
+const circleGeometry = new THREE.CircleGeometry(1, 32);  // radius 1, 32 segments
+const circleMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+const circle = new THREE.Mesh(circleGeometry, circleMaterial);
+target.add(circle);
+const lineMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+const horizontalLineGeometry = new THREE.PlaneGeometry(2.5, 0.1);  // width, height
+const horizontalLine = new THREE.Mesh(horizontalLineGeometry, lineMaterial);
+target.add(horizontalLine);
+const verticalLineGeometry = new THREE.PlaneGeometry(0.1, 2.5);  // width, height
+const verticalLine = new THREE.Mesh(verticalLineGeometry, lineMaterial);
+target.add(verticalLine);
+scene.add(target);
+
 // Player
 const playerGeometry = new THREE.BoxGeometry(0.5, 1, 0.5);
 const playerMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
-player.position.set(0, 0, 0);
+player.position.set(0, 0, 1);
 scene.add(player);
 
 // Controls impl
@@ -98,14 +115,17 @@ document.addEventListener('keyup', (event) => {
 // Collision detection and response
 const fenceBox = new THREE.Box3().setFromObject(fence);
 const playerBox = new THREE.Box3().setFromObject(player);
+let speed = 0.1;
 
 function handleMovement() {
+    // Get the direction of the camera
     const direction = new THREE.Vector3();
     controls.getDirection(direction);
     const perp = new THREE.Vector3();
     perp.crossVectors(direction, controls.object.up);
     perp.normalize();
 
+    // Get the point on the fence closest to the player
     const fencePoint = new THREE.Vector3(
         THREE.MathUtils.clamp(player.position.x, fenceBox.min.x, fenceBox.max.x),
         THREE.MathUtils.clamp(player.position.y, fenceBox.min.y, fenceBox.max.y),
@@ -117,9 +137,8 @@ function handleMovement() {
     playerBox.setFromObject(player);
     let collide = playerBox.intersectsBox(fenceBox);
 
-    const speed = 0.1; // Movement speed
-
     // Movement controls
+    let hasMoved = keys['w'] || keys['s'] || keys['a'] || keys['d'];
     if (keys['w'])
         if ((!collide) || (collide && direction.dot(toFence) < -0.07)) {
             controls.moveForward(speed);   // Move forward
@@ -130,9 +149,6 @@ function handleMovement() {
         }
     if (keys['a'])
         if ((!collide) || (collide && perp.dot(toFence) > 0.07)) {
-            // console.log('direction: ', direction);
-            // console.log('perp', perp);
-            console.log(perp.dot(toFence));
             controls.moveRight(-speed);  // Move left
         }
     if (keys['d'])
@@ -141,15 +157,46 @@ function handleMovement() {
         }
 
     // Update player position
-    player.position.copy(controls.object.position);
+    if (hasMoved) {
+        player.position.copy(controls.object.position);
+        handleTarget();
+    }
+}
+
+function handleTarget() {
+    target.position.copy(building.position);
+    target.lookAt(player.position);
+
+    // Get distance from target to player
+    const distance = player.position.distanceTo(building.position);
+    target.visible = distance <= 10;
+
+    let scale = distance / 14 + 0.1;
+    scale = THREE.MathUtils.clamp(scale, 0.3, 0.8);
+    target.scale.set(scale, scale, scale);
 }
 
 function animate() {
     requestAnimationFrame(animate);
 
     handleMovement();
+    handleTarget();
 
     renderer.render(scene, camera);
 }
 
 animate();
+
+// Mouse event handling
+window.addEventListener('mousedown', onMouseDown, false);
+
+// window.addEventListener('mouseup', onMouseUp, false);
+
+function onMouseDown() {
+    // Get the distance from player to building
+    const distance = player.position.distanceTo(building.position);
+
+    if (distance <= 4) {
+        window.location.href = 'combat.html'; // Navigate to combat.html
+    }
+}
