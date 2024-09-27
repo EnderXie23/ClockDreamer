@@ -95,6 +95,14 @@ function progressVal(moveVal) {
     });
 }
 
+function filterActions(){
+    // Remove items in actionQ that have minus speed / index not reachable
+    actionQ.elements = actionQ.elements.filter(action => action.PlayerInfo.speed > 0);
+    actionQ.elements = actionQ.elements.filter(action => action.index <= action.PlayerInfo.actionVal);
+
+    actionQ.elements.sort((a, b) => a.index - b.index);
+}
+
 function startRound() {
     round += 1;
     document.getElementById('round-indicator').textContent = 'Round ' + round;
@@ -138,7 +146,9 @@ function speedUp(val) {
         action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
         action.PlayerInfo.speed += val;
     });
-    actionQ.elements.sort((a, b) => a.index - b.index);
+
+    // Filter actions in case of minus speed-up
+    filterActions();
     // console.log(actionQ);
 }
 
@@ -148,7 +158,9 @@ function actionForward(val) {
         action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
         action.index = Math.max(action.index, 0);
     });
-    actionQ.elements.sort((a, b) => a.index - b.index);
+
+    // Filter actions in case of minus forward
+    filterActions();
     // console.log(actionQ);
 }
 
