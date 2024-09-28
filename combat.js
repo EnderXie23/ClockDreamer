@@ -1,11 +1,12 @@
 import * as THREE from 'three';
 
+const container = document.getElementById('container');
 // Initializing Three.js scene
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth * 0.6 / window.innerHeight, 0.1, 1000);
-const renderer = new THREE.WebGLRenderer({canvas: document.getElementById('canvas')});
+const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
-document.body.appendChild(renderer.domElement);
+container.appendChild(renderer.domElement);
 
 camera.position.z = 5;
 
@@ -40,7 +41,7 @@ function addAction(text) {
     actionSequence.scrollTop = actionSequence.scrollHeight; // Auto scroll
 }
 
-function clearAction() {
+function clearActions() {
     actionSequence.innerHTML = "";
 }
 
@@ -87,15 +88,28 @@ function progressVal(moveVal) {
     document.getElementById('val-indicator').textContent = 'Current action value: ' + Math.round(currentVal);
     console.log('Current action value: ' + currentVal);
 
-    clearAction();
+    clearActions();
+    let next_round_info = [];
     actionQ.elements.forEach(action => {
         action.PlayerInfo.actionVal -= moveVal;
         action.index -= moveVal;
+        if (action.PlayerInfo.actionVal - action.index >= action.PlayerInfo.dist / action.PlayerInfo.speed)
+            // Show two rounds in advance
+            next_round_info.push({
+                index: action.PlayerInfo.dist / action.PlayerInfo.speed,
+                PlayerInfo: action.PlayerInfo
+            });
+        addAction('Player ' + action.PlayerInfo.playerId + ': ' + Math.round(action.index));
+    });
+
+    next_round_info.sort((a, b) => a.index - b.index);
+    next_round_info.forEach(action => {
         addAction('Player ' + action.PlayerInfo.playerId + ':\n' + Math.round(action.index));
+        // addAction('Player ' + action.PlayerInfo.playerId + ': next ' + Math.round(action.index) + ' action value: ' + Math.round(action.PlayerInfo.actionVal));
     });
 }
 
-function filterActions(){
+function filterActions() {
     // Remove items in actionQ that have minus speed / index not reachable
     actionQ.elements = actionQ.elements.filter(action => action.PlayerInfo.speed > 0);
     actionQ.elements = actionQ.elements.filter(action => action.index <= action.PlayerInfo.actionVal);
