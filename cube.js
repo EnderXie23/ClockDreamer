@@ -28,7 +28,6 @@ controls.maxPolarAngle = Math.PI / 2;
 controls.minAzimuthAngle = -Math.PI / 8;
 controls.maxAzimuthAngle = Math.PI / 2;
 
-
 // Cube
 let cubes = [];
 let vis = [];
@@ -95,6 +94,32 @@ function hideAdjacentCubes() {
                     vis[x][y][z] = false;
 }
 
+// Load goals
+let maxCubes = 5;
+let goalCubes = [
+    [2, 0, 0],
+    [2, 0, 1],
+    [2, 0, 2],
+    [2, 1, 2],
+    [2, 2, 2]
+];
+
+// Goal indicators
+
+
+// Init
+function init() {
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++) {
+                vis[x][y][z] = false;
+                cubes[x][y][z].material.wireframe = true;
+            }
+    cubes[2][0][0].material.wireframe = false;
+    vis[2][0][0] = true;
+    controls.reset();
+}
+
 // Animate
 function animate() {
     requestAnimationFrame(animate);
@@ -105,20 +130,25 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-cubes[2][0][0].material.wireframe = false;
-vis[2][0][0] = true;
+init();
 animate();
 
 // Keyboard event listener
 window.addEventListener('mousedown', onMouseDown, false);
 // window.addEventListener('mousemove', onMouseMove, false);
 window.addEventListener('mouseup', onMouseUp, false);
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'r') {
+        init();
+    }
+});
 
 // Create Raycaster and mouse vector
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let intersectsVis;
-let intersectsWire;
+let intersectsVis = [], intersectsWire = [];
+let visibleCubes = [], wireCubes = [];
+let targetCube;
 
 
 // Handle mouse down event (selecting objects)
@@ -129,14 +159,14 @@ function onMouseDown(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    let visibleCubes = [];
+    visibleCubes = [];
+    wireCubes = [];
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
                 if (vis[x][y][z] && !cubes[x][y][z].material.wireframe)
                     visibleCubes.push(cubes[x][y][z]);
 
-    let wireCubes = [];
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
@@ -150,28 +180,32 @@ function onMouseDown(event) {
     intersectsVis = raycaster.intersectObjects(visibleCubes);
     intersectsWire = raycaster.intersectObjects(wireCubes);
 
-    if (intersectsVis.length === 1) {
-        // Show its adjacent cubes
-        const cube = intersectsVis[0].object;
-        const {x, y, z} = cube.position;
-        showAdjacentCubes(x + 1, y + 1, z + 1);
-    } else if (intersectsWire.length === 1) {
+    if (intersectsWire.length > 0 && intersectsVis.length === 0) {
         // Make the adjacent cube visible
-        const cube = intersectsWire[0].object;
-        cube.material.wireframe = false;
-        const {x, y, z} = cube.position;
+        targetCube = intersectsWire[0].object;
+        targetCube.material.wireframe = false;
+        const {x, y, z} = targetCube.position;
         hideAdjacentCubes();
         vis[x + 1][y + 1][z + 1] = true;
+    }else if (intersectsVis.length > 0) {
+        // Show its adjacent cubes
+        if (intersectsVis[0].object !== targetCube){
+            hideAdjacentCubes();
+            targetCube = intersectsVis[0].object;
+        }
+        const {x, y, z} = targetCube.position;
+        showAdjacentCubes(x + 1, y + 1, z + 1);
     }
-}
-
-// Handle mouse move event (dragging the yellow block)
-function onMouseMove(event) {
-
 }
 
 // Handle mouse up event (stop dragging)
 function onMouseUp() {
-    if (intersectsVis.length === 0 && intersectsWire.length === 0)
+    if (intersectsVis.length === 0 && intersectsWire.length === 0) {
         hideAdjacentCubes();
+    }
+}
+
+// Game judge
+function judge() {
+
 }
