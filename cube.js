@@ -54,15 +54,82 @@ for (let x = 0; x < 3; x++) {
     }
 }
 
-// Deal with visibility
-function updateVisibility() {
+// Load goals
+let maxCubes, cubesLeft;
+let goalCubes = [
+    [2, 0, 0],
+    [2, 0, 1],
+    [2, 0, 2],
+    [2, 1, 2],
+    [2, 2, 2]
+];
+
+// Goal indicators
+let goalZ = [];
+let goalX = [];
+let faceGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.05);
+
+function addIndicator() {
     for (let x = 0; x < 3; x++) {
         for (let y = 0; y < 3; y++) {
-            for (let z = 0; z < 3; z++) {
-                cubes[x][y][z].visible = vis[x][y][z];
-            }
+            let face = new THREE.Mesh(faceGeometry, new THREE.MeshBasicMaterial({color: 0x0000ff, wireframe: true}));
+            face.position.set(x - 1, y - 1, -3);
+            scene.add(face);
+            if (!goalZ[x]) goalZ[x] = [];
+            goalZ[x][y] = face;
         }
     }
+    for (let y = 0; y < 3; y++) {
+        for (let z = 0; z < 3; z++) {
+            let face = new THREE.Mesh(faceGeometry, new THREE.MeshBasicMaterial({color: 0x0000ff, wireframe: true}));
+            face.position.set(-3, y - 1, z - 1);
+            face.rotateY(Math.PI / 2);
+            scene.add(face);
+            if (!goalX[y]) goalX[y] = [];
+            goalX[y][z] = face;
+        }
+    }
+    goalCubes.forEach(loc => {
+        const [x, y, z] = loc;
+        goalZ[x][y].material.wireframe = false;
+        goalX[y][z].material.wireframe = false;
+    })
+}
+
+function checkIndicatorZ(x, y) {
+    let bool = false;
+    for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 3; j++)
+            bool |= (i === x && j === y && !goalZ[i][j].material.wireframe);
+    return bool;
+}
+
+function checkIndicatorX(y, z) {
+    let bool = false;
+    for (let i = 0; i < 3; i++)
+        for (let j = 0; j < 3; j++)
+            bool |= (i === y && j === z && !goalX[i][j].material.wireframe);
+    return bool;
+}
+
+// Deal with visibility
+function updateVisibility() {
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++) {
+                cubes[x][y][z].visible = vis[x][y][z];
+                if (vis[x][y][z] && !cubes[x][y][z].material.wireframe) {
+                    if (checkIndicatorZ(x, y))
+                        goalZ[x][y].material.color = new THREE.Color(0x00ff00);
+                    else
+                        goalZ[x][y].material.color = new THREE.Color(0xff0000);
+
+                    if (checkIndicatorX(y, z))
+                        goalX[y][z].material.color = new THREE.Color(0x00ff00);
+                    else
+                        goalX[y][z].material.color = new THREE.Color(0xff0000);
+                }
+            }
 }
 
 function showAdjacentCubes(x, y, z) {
@@ -94,21 +161,11 @@ function hideAdjacentCubes() {
                     vis[x][y][z] = false;
 }
 
-// Load goals
-let maxCubes = 5;
-let goalCubes = [
-    [2, 0, 0],
-    [2, 0, 1],
-    [2, 0, 2],
-    [2, 1, 2],
-    [2, 2, 2]
-];
-
-// Goal indicators
-
 
 // Init
 function init() {
+    addIndicator();
+    cubesLeft = maxCubes = 5;
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++) {
@@ -120,14 +177,68 @@ function init() {
     controls.reset();
 }
 
+// Game judge
+function judge() {
+    let count = 0;
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++)
+                if (vis[x][y][z] && !cubes[x][y][z].material.wireframe)
+                    count += goalCubes.some(loc => loc[0] === x && loc[1] === y && loc[2] === z);
+
+    return count === maxCubes;
+}
+
+// Win / lose
+function showWinAnimation() {
+    const winText = document.createElement('div');
+    winText.innerHTML = "You Win!";
+    winText.style.position = 'absolute';
+    winText.style.top = '50%';
+    winText.style.left = '50%';
+    winText.style.fontSize = '48px';
+    winText.style.color = 'green';
+    winText.style.transform = 'translate(-50%, -50%)';
+    document.body.appendChild(winText);
+
+    // Automatically remove the message after 3 seconds
+    setTimeout(() => {
+        document.body.removeChild(winText);
+    }, 3000);
+}
+
+function showLoseAnimation() {
+    const loseText = document.createElement('div');
+    loseText.innerHTML = "You Lose!";
+    loseText.style.position = 'absolute';
+    loseText.style.top = '50%';
+    loseText.style.left = '50%';
+    loseText.style.fontSize = '48px';
+    loseText.style.color = 'red';
+    loseText.style.transform = 'translate(-50%, -50%)';
+    document.body.appendChild(loseText);
+
+    // Automatically remove the message after 3 seconds
+    setTimeout(() => {
+        document.body.removeChild(loseText);
+    }, 3000);
+}
+
 // Animate
 function animate() {
     requestAnimationFrame(animate);
 
     updateVisibility();
     controls.update();
-
     renderer.render(scene, camera);
+
+    if (cubesLeft === 1) {
+        if (judge())
+            showWinAnimation();
+        else
+            showLoseAnimation();
+        init();
+    }
 }
 
 init();
@@ -187,9 +298,10 @@ function onMouseDown(event) {
         const {x, y, z} = targetCube.position;
         hideAdjacentCubes();
         vis[x + 1][y + 1][z + 1] = true;
-    }else if (intersectsVis.length > 0) {
+        if (cubesLeft > 1) cubesLeft--;
+    } else if (intersectsVis.length > 0) {
         // Show its adjacent cubes
-        if (intersectsVis[0].object !== targetCube){
+        if (intersectsVis[0].object !== targetCube) {
             hideAdjacentCubes();
             targetCube = intersectsVis[0].object;
         }
@@ -203,9 +315,4 @@ function onMouseUp() {
     if (intersectsVis.length === 0 && intersectsWire.length === 0) {
         hideAdjacentCubes();
     }
-}
-
-// Game judge
-function judge() {
-
 }
