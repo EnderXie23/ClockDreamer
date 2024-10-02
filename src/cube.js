@@ -55,7 +55,7 @@ for (let x = 0; x < 3; x++) {
 }
 
 // Load goals
-let maxCubes, cubesLeft;
+let maxCubes, cubesLeft, initCubes = 1;
 let goalCubes = [
     [2, 0, 0],
     [2, 0, 1],
@@ -63,6 +63,7 @@ let goalCubes = [
     [2, 1, 2],
     [2, 2, 2]
 ];
+let lastPlaceCube;
 
 // Goal indicators
 let goalZ = [];
@@ -97,23 +98,22 @@ function addIndicator() {
 }
 
 function checkIndicatorZ(x, y) {
-    let bool = false;
-    for (let i = 0; i < 3; i++)
-        for (let j = 0; j < 3; j++)
-            bool |= (i === x && j === y && !goalZ[i][j].material.wireframe);
-    return bool;
+    return !goalZ[x][y].material.wireframe;
 }
 
 function checkIndicatorX(y, z) {
-    let bool = false;
-    for (let i = 0; i < 3; i++)
-        for (let j = 0; j < 3; j++)
-            bool |= (i === y && j === z && !goalX[i][j].material.wireframe);
-    return bool;
+    return !goalX[y][z].material.wireframe;
 }
 
 // Deal with visibility
 function updateVisibility() {
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++) {
+                goalZ[x][y].material.color = new THREE.Color(0x0000ff);
+                goalX[y][z].material.color = new THREE.Color(0x0000ff);
+            }
+
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++) {
@@ -165,7 +165,9 @@ function hideAdjacentCubes() {
 // Init
 function init() {
     addIndicator();
-    cubesLeft = maxCubes = 5;
+    maxCubes = 5;
+    cubesLeft = maxCubes - initCubes; // One cube is already visible
+    lastPlaceCube = null;
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++) {
@@ -179,14 +181,15 @@ function init() {
 
 // Game judge
 function judge() {
-    let count = 0;
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
-            for (let z = 0; z < 3; z++)
-                if (vis[x][y][z] && !cubes[x][y][z].material.wireframe)
-                    count += goalCubes.some(loc => loc[0] === x && loc[1] === y && loc[2] === z);
-
-    return count === maxCubes;
+            if (!goalZ[x][y].material.wireframe && goalZ[x][y].material.color.getHex() !== 0x00ff00)
+                return false;
+    for (let y = 0; y < 3; y++)
+        for (let z = 0; z < 3; z++)
+            if (!goalX[y][z].material.wireframe && goalX[y][z].material.color.getHex() !== 0x00ff00)
+                return false;
+    return true;
 }
 
 // Win / lose
@@ -232,7 +235,7 @@ function animate() {
     controls.update();
     renderer.render(scene, camera);
 
-    if (cubesLeft === 1) {
+    if (cubesLeft === 0) {
         if (judge())
             showWinAnimation();
         else
@@ -252,6 +255,15 @@ window.addEventListener('keydown', (event) => {
     if (event.key === 'r') {
         init();
     }
+    if (event.key === 'z') {
+        if(!lastPlaceCube) return;
+        lastPlaceCube.material.wireframe = true;
+        const {x, y, z} = lastPlaceCube.position;
+        vis[x + 1][y + 1][z + 1] = false;
+        cubesLeft++;
+        updateVisibility();
+        lastPlaceCube = null;
+    }
 });
 
 // Create Raycaster and mouse vector
@@ -260,7 +272,6 @@ const mouse = new THREE.Vector2();
 let intersectsVis = [], intersectsWire = [];
 let visibleCubes = [], wireCubes = [];
 let targetCube;
-
 
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
@@ -298,7 +309,8 @@ function onMouseDown(event) {
         const {x, y, z} = targetCube.position;
         hideAdjacentCubes();
         vis[x + 1][y + 1][z + 1] = true;
-        if (cubesLeft > 1) cubesLeft--;
+        lastPlaceCube = targetCube;
+        if (cubesLeft > 0) cubesLeft--;
     } else if (intersectsVis.length > 0) {
         // Show its adjacent cubes
         if (intersectsVis[0].object !== targetCube) {
