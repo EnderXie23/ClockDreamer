@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {Skill, Player, Enemy} from './Character.js';
 
 const container = document.getElementById('container');
 // Initializing Three.js scene
@@ -128,8 +129,7 @@ function startRound() {
     });
 
     // Get the first player in the queue to act
-    currentVal = actionQ.elements[0].index;
-    progressVal(currentVal);
+    calcAction();
 }
 
 startRound();
@@ -150,29 +150,34 @@ function calcAction() {
         progressVal(moveVal);
     } else {
         // Start a new round
+        currentVal = 0;
         startRound();
         console.log("New round started!")
     }
 }
 
-function speedUp(val) {
+export function speedUp(val) {
     actionQ.elements.forEach(action => {
         action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
         action.PlayerInfo.speed += val;
     });
 
+    // Update action queue
+    progressVal(0);
     // Filter actions in case of minus speed-up
     filterActions();
     // console.log(actionQ);
 }
 
-function actionForward(val) {
+export function actionForward(val) {
     // All the action dist decrease by val
     actionQ.elements.forEach(action => {
         action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
         action.index = Math.max(action.index, 0);
     });
 
+    // Update action queue
+    progressVal(0);
     // Filter actions in case of minus forward
     filterActions();
     // console.log(actionQ);
@@ -191,11 +196,9 @@ document.getElementById('defendButton').addEventListener('click', function () {
 document.getElementById('skillButton').addEventListener('click', function () {
     // addAction("Player used a skill!");
     speedUp(20);
-    progressVal(0);
 });
 
 document.getElementById('forwardButton').addEventListener('click', function () {
     // addAction("Player moved forward!");
     actionForward(0.16);
-    progressVal(0);
 });
