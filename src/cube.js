@@ -40,7 +40,9 @@ for (let x = 0; x < 3; x++) {
             vis[x][y][z] = false; // Initially, all cubes are not visible
 
             // Create a cube
-            const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshBasicMaterial({color: 0xff0000, wireframe: true}));
+            const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshBasicMaterial(
+                {color: 0xff0000, wireframe: true, transparent: true, opacity: 0.5}
+            ));
 
             // Position the cube
             cube.position.set(x - 1, y - 1, z - 1);
@@ -55,15 +57,22 @@ for (let x = 0; x < 3; x++) {
 }
 
 // Load goals
-let maxCubes, cubesLeft, initCubes = 1;
-let goalCubes = [
-    [2, 0, 0],
-    [2, 0, 1],
-    [2, 0, 2],
-    [2, 1, 2],
-    [2, 2, 2]
-];
+let maxCubes, cubesLeft, initCubes;
+let goalCubes = [];
+let initVis = [];
 let lastPlaceCube;
+
+async function loadFromFile(path) {
+    try {
+        const response = await fetch(path);
+        if (!response.ok) {
+            console.error("Failed to load file");
+        }
+        return await response.json();
+    } catch (error) {
+        console.error(error);
+    }
+}
 
 // Goal indicators
 let goalZ = [];
@@ -161,22 +170,34 @@ function hideAdjacentCubes() {
                     vis[x][y][z] = false;
 }
 
-
 // Init
-function init() {
-    addIndicator();
-    maxCubes = 5;
-    cubesLeft = maxCubes - initCubes; // One cube is already visible
-    lastPlaceCube = null;
-    for (let x = 0; x < 3; x++)
-        for (let y = 0; y < 3; y++)
-            for (let z = 0; z < 3; z++) {
-                vis[x][y][z] = false;
-                cubes[x][y][z].material.wireframe = true;
-            }
-    cubes[2][0][0].material.wireframe = false;
-    vis[2][0][0] = true;
-    controls.reset();
+async function init() {
+    // Load game from file
+    loadFromFile("/data/cubes/cube3.json").then(data => {
+        goalCubes = data.goalCubes;
+        maxCubes = data.maxCubes;
+        initCubes = data.initCubes;
+        initVis = data.initVis;
+        cubesLeft = maxCubes - initCubes;
+
+        addIndicator();
+        lastPlaceCube = null;
+
+        for (let x = 0; x < 3; x++)
+            for (let y = 0; y < 3; y++)
+                for (let z = 0; z < 3; z++) {
+                    vis[x][y][z] = false;
+                    cubes[x][y][z].material.wireframe = true;
+                }
+
+        // Render Initial cubes
+        initVis.forEach(loc => {
+            const [x, y, z] = loc;
+            vis[x][y][z] = true;
+            cubes[x][y][z].material.wireframe = false;
+        });
+        controls.reset();
+    })
 }
 
 // Game judge
@@ -230,8 +251,11 @@ function showLoseAnimation() {
 // Animate
 function animate() {
     requestAnimationFrame(animate);
-
-    updateVisibility();
+    try {
+        updateVisibility();
+    } catch (error) {
+        console.warn(error);
+    }
     controls.update();
     renderer.render(scene, camera);
 
@@ -244,19 +268,19 @@ function animate() {
     }
 }
 
-init();
+await init();
 animate();
 
 // Keyboard event listener
 window.addEventListener('mousedown', onMouseDown, false);
-// window.addEventListener('mousemove', onMouseMove, false);
+window.addEventListener('mousemove', onMouseMove, false);
 window.addEventListener('mouseup', onMouseUp, false);
 window.addEventListener('keydown', (event) => {
     if (event.key === 'r') {
         init();
     }
     if (event.key === 'z') {
-        if(!lastPlaceCube) return;
+        if (!lastPlaceCube) return;
         lastPlaceCube.material.wireframe = true;
         const {x, y, z} = lastPlaceCube.position;
         vis[x + 1][y + 1][z + 1] = false;
@@ -272,10 +296,12 @@ const mouse = new THREE.Vector2();
 let intersectsVis = [], intersectsWire = [];
 let visibleCubes = [], wireCubes = [];
 let targetCube;
+let dragging = false;
 
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
     event.preventDefault();
+    dragging = false;
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -322,8 +348,17 @@ function onMouseDown(event) {
     }
 }
 
+// Handle mouse move event (dragging)
+function onMouseMove() {
+    dragging = true;
+}
+
 // Handle mouse up event (stop dragging)
 function onMouseUp() {
+    if (dragging) {
+        dragging = false;
+        return;
+    }
     if (intersectsVis.length === 0 && intersectsWire.length === 0) {
         hideAdjacentCubes();
     }
