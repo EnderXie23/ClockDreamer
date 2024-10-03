@@ -18,20 +18,20 @@ light.position.set(10, 10, 10);
 
 // Create camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(5, 5, 5);
+camera.position.set(4, 4, 4);
 camera.lookAt(0, 0, 0);
 
 // Controls
 const controls = new OrbitControls(camera, renderer.domElement);
 controls.update();
-controls.maxPolarAngle = Math.PI / 2;
-controls.minAzimuthAngle = -Math.PI / 8;
-controls.maxAzimuthAngle = Math.PI / 2;
+controls.maxPolarAngle = 2 * Math.PI / 3;
+controls.minAzimuthAngle = -Math.PI / 4;
+controls.maxAzimuthAngle = 2 * Math.PI / 3;
 
 // Cube
 let cubes = [];
 let vis = [];
-let cubeGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.9);
+let cubeGeometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
 for (let x = 0; x < 3; x++) {
     vis[x] = [];
     for (let y = 0; y < 3; y++) {
@@ -41,7 +41,7 @@ for (let x = 0; x < 3; x++) {
 
             // Create a cube
             const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshBasicMaterial(
-                {color: 0xff0000, wireframe: true, transparent: true, opacity: 0.5}
+                {color: 0xff0000, wireframe: true, transparent: true, opacity: 0.4}
             ));
 
             // Position the cube
@@ -173,7 +173,7 @@ function hideAdjacentCubes() {
 // Init
 async function init() {
     // Load game from file
-    loadFromFile("/data/cubes/cube3.json").then(data => {
+    loadFromFile("/data/cubes/cube5.json").then(data => {
         goalCubes = data.goalCubes;
         maxCubes = data.maxCubes;
         initCubes = data.initCubes;
@@ -203,17 +203,23 @@ async function init() {
 // Game judge
 function judge() {
     for (let x = 0; x < 3; x++)
-        for (let y = 0; y < 3; y++)
+        for (let y = 0; y < 3; y++) {
             if (!goalZ[x][y].material.wireframe && goalZ[x][y].material.color.getHex() !== 0x00ff00)
                 return false;
+            if (goalX[y][x].material.color.getHex() === 0xff0000)
+                return false;
+        }
     for (let y = 0; y < 3; y++)
-        for (let z = 0; z < 3; z++)
+        for (let z = 0; z < 3; z++) {
             if (!goalX[y][z].material.wireframe && goalX[y][z].material.color.getHex() !== 0x00ff00)
                 return false;
+            if (goalZ[y][z].material.color.getHex() === 0xff0000)
+                return false;
+        }
     return true;
 }
 
-// Win / lose
+// Animations
 function showWinAnimation() {
     const winText = document.createElement('div');
     winText.innerHTML = "You Win!";
@@ -246,6 +252,25 @@ function showLoseAnimation() {
     setTimeout(() => {
         document.body.removeChild(loseText);
     }, 3000);
+}
+
+function showCubesLeftAnimation() {
+    const indText = document.createElement('div');
+    indText.innerHTML = "You have " + cubesLeft + " cubes left!";
+    if (cubesLeft !== 0)
+        indText.innerHTML += "<br>Press 'z' to undo, 'r' to restart";
+    indText.style.position = 'absolute';
+    indText.style.top = '80%';
+    indText.style.left = '20%';
+    indText.style.fontSize = '40px';
+    indText.style.color = 'green';
+    indText.style.transform = 'translate(-50%, -50%)';
+    document.body.appendChild(indText);
+
+    // Automatically remove the message after 1 second
+    setTimeout(() => {
+        document.body.removeChild(indText);
+    }, 1000);
 }
 
 // Animate
@@ -293,8 +318,7 @@ window.addEventListener('keydown', (event) => {
 // Create Raycaster and mouse vector
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
-let intersectsVis = [], intersectsWire = [];
-let visibleCubes = [], wireCubes = [];
+let actionCubes = [], intersects = [];
 let targetCube;
 let dragging = false;
 
@@ -307,42 +331,45 @@ function onMouseDown(event) {
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
 
-    visibleCubes = [];
-    wireCubes = [];
+    actionCubes = [];
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
                 if (vis[x][y][z] && !cubes[x][y][z].material.wireframe)
-                    visibleCubes.push(cubes[x][y][z]);
+                    actionCubes.push(cubes[x][y][z]);
 
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
                 if (vis[x][y][z] && cubes[x][y][z].material.wireframe)
-                    wireCubes.push(cubes[x][y][z]);
+                    actionCubes.push(cubes[x][y][z]);
 
     // Update the rayCaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
 
     // Check if we intersect with visible cubes
-    intersectsVis = raycaster.intersectObjects(visibleCubes);
-    intersectsWire = raycaster.intersectObjects(wireCubes);
+    intersects = raycaster.intersectObjects(actionCubes);
+    if (intersects.length > 0)
+        targetCube = intersects[0].object;
+    else
+        return;
 
-    if (intersectsWire.length > 0 && intersectsVis.length === 0) {
+    if (targetCube.material.wireframe) {
         // Make the adjacent cube visible
-        targetCube = intersectsWire[0].object;
         targetCube.material.wireframe = false;
         const {x, y, z} = targetCube.position;
-        hideAdjacentCubes();
         vis[x + 1][y + 1][z + 1] = true;
+
+        // Hide adjacent cubes
+        hideAdjacentCubes();
+
+        // Mark the last placed cube
         lastPlaceCube = targetCube;
         if (cubesLeft > 0) cubesLeft--;
-    } else if (intersectsVis.length > 0) {
+        showCubesLeftAnimation();
+    } else {
         // Show its adjacent cubes
-        if (intersectsVis[0].object !== targetCube) {
-            hideAdjacentCubes();
-            targetCube = intersectsVis[0].object;
-        }
+        hideAdjacentCubes();
         const {x, y, z} = targetCube.position;
         showAdjacentCubes(x + 1, y + 1, z + 1);
     }
@@ -350,6 +377,7 @@ function onMouseDown(event) {
 
 // Handle mouse move event (dragging)
 function onMouseMove() {
+    // Detect if mouse is down
     dragging = true;
 }
 
@@ -359,7 +387,7 @@ function onMouseUp() {
         dragging = false;
         return;
     }
-    if (intersectsVis.length === 0 && intersectsWire.length === 0) {
+    if (intersects.length === 0) {
         hideAdjacentCubes();
     }
 }
