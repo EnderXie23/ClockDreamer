@@ -173,7 +173,7 @@ function hideAdjacentCubes() {
 // Init
 async function init() {
     // Load game from file
-    loadFromFile("/data/cubes/cube5.json").then(data => {
+    loadFromFile("/data/cubes/cube3.json").then(data => {
         goalCubes = data.goalCubes;
         maxCubes = data.maxCubes;
         initCubes = data.initCubes;

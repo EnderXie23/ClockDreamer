@@ -19,14 +19,6 @@ loader.load('./data/models/firefly.glb', function (gltf) {
 // Create camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 0, 1);
-
-// Rotate camera
-const angleY = THREE.MathUtils.degToRad(-30);
-const rotationMatrixY = new THREE.Matrix4().makeRotationY(-angleY); // Apply negative angle for clockwise rotation
-camera.applyMatrix4(rotationMatrixY); // Apply the rotation to the camera
-const angleZ = THREE.MathUtils.degToRad(-45);
-const rotationMatrixZ = new THREE.Matrix4().makeRotationZ(-angleZ);
-camera.applyMatrix4(rotationMatrixZ);
 camera.lookAt(0, 0, 0); // Point the camera at the origin
 
 // Translate camera
@@ -42,12 +34,18 @@ document.body.appendChild(renderer.domElement);
 const light = new THREE.PointLight(0xffffff, 1, 100);
 light.position.set(10, 10, 10);
 scene.add(light);
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+directionalLight.position.set(10, 10, 10);
+scene.add(directionalLight);
 
 // Ground
 const groundGeometry = new THREE.PlaneGeometry(500, 500);
 const groundMaterial = new THREE.MeshBasicMaterial({color: 0x228B22});
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
+ground.receiveShadow = true;
 scene.add(ground);
 
 // Building
@@ -88,18 +86,19 @@ const playerGeometry = new THREE.BoxGeometry(0.5, 1, 0.5);
 const playerMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
 const player = new THREE.Mesh(playerGeometry, playerMaterial);
 player.position.set(0, 0, 1);
+player.castShadow = true;
 scene.add(player);
 
 // Controls impl
-const controls = new PointerLockControls(camera, document.body);
+const controls = new PointerLockControls(camera, renderer.domElement);
 document.addEventListener('click', () => {
     controls.lock();
 });
 scene.add(controls.object);
 
-// Maximum and minimum pitch angles in radians (-60 to 60 degrees)
-const maxPitch = THREE.MathUtils.degToRad(120);
-const minPitch = THREE.MathUtils.degToRad(60);
+// Maximum and minimum pitch angles in radians
+const maxPitch = THREE.MathUtils.degToRad(150);
+const minPitch = THREE.MathUtils.degToRad(80);
 controls.maxPolarAngle = maxPitch;
 controls.minPolarAngle = minPitch;
 
@@ -131,11 +130,12 @@ function handleMovement() {
         THREE.MathUtils.clamp(player.position.y, fenceBox.min.y, fenceBox.max.y),
         THREE.MathUtils.clamp(player.position.z, fenceBox.min.z, fenceBox.max.z)
     )
-    const toFence = fencePoint.sub(controls.object.position);
+    const toFence = fencePoint.sub(player.position);
 
     // Collision detection
     playerBox.setFromObject(player);
     let collide = playerBox.intersectsBox(fenceBox);
+    let displacement = controls.object.position.clone();
 
     // Movement controls
     let hasMoved = keys['w'] || keys['s'] || keys['a'] || keys['d'];
@@ -156,10 +156,11 @@ function handleMovement() {
             controls.moveRight(speed);  // Move right
         }
 
+    displacement = controls.object.position.clone().sub(displacement);
+
     // Update player position
     if (hasMoved) {
-        player.position.copy(controls.object.position);
-        handleTarget();
+        player.position.add(displacement);
     }
 }
 
@@ -181,6 +182,8 @@ function animate() {
 
     handleMovement();
     handleTarget();
+    const offset = new THREE.Vector3(0, 1, 3).applyQuaternion(camera.quaternion);
+    camera.position.lerp(player.position.clone().add(offset), 0.1);
 
     renderer.render(scene, camera);
 }
