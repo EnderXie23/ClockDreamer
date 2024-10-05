@@ -133,10 +133,6 @@ function filterActions() {
     // Remove dead players
     allPlayers = allPlayers.filter(player => player.isAlive);
     allEnemies = allEnemies.filter(enemy => enemy.isAlive);
-
-    if (allPlayers.length === 0 || allEnemies.length === 0) {
-        alert("Game over!");
-    }
 }
 
 function initGame() {
@@ -152,10 +148,10 @@ function initGame() {
 
     // Reset the action queue
     actionQ.elements = [];
-    updateStatusPanel();
 
     // Reset the round
     round = 0;
+    currentVal = 0;
     startRound();
 }
 
@@ -165,13 +161,18 @@ function startRound() {
 
     // Insert players and enemies into actionQ
     allPlayers.forEach(player => {
+        player.speed = initPlayers.find(initPlayer => initPlayer.id === player.id).speed;
         let info = new PlayerInfo(player.id, player.speed);
         actionQ.enqueue(info.dist / player.speed, info);
     });
     allEnemies.forEach(enemy => {
+        enemy.speed = initEnemies.find(initEnemy => initEnemy.id === enemy.id).speed;
         let info = new PlayerInfo(enemy.id, enemy.speed, "enemy");
         actionQ.enqueue(info.dist / enemy.speed, info);
     });
+
+    // Update status panel
+    updateStatusPanel();
 
     // Calculate the first act in queue
     const moveVal = actionQ.elements[0].index;
@@ -200,6 +201,12 @@ initGame();
 
 function afterAction() {
     updateStatusPanel();
+
+    filterActions();
+    if (allPlayers.length === 0 || allEnemies.length === 0) {
+        alert("Game over!");
+        initGame();
+    }
 
     // Update action value for all players
     actionQ.dequeue();
@@ -260,8 +267,8 @@ export function speedUp(val) {
         if (action.PlayerInfo.charType === "player") {
             action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
             action.PlayerInfo.speed += val;
+            allPlayers.find(player => player.id === action.PlayerInfo.playerId).speed += val;
         }
-        allPlayers.find(player => player.id === action.PlayerInfo.playerId).speed += val;
     });
 
     // Update action queue
