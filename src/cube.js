@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
 
-const container = document.getElementById('container');
 // Renderer
+const container = document.getElementById('container');
 const renderer = new THREE.WebGLRenderer({antiAlias: true});
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.setSize(window.innerWidth, window.innerHeight);
@@ -29,28 +29,25 @@ controls.minAzimuthAngle = -Math.PI / 4;
 controls.maxAzimuthAngle = 2 * Math.PI / 3;
 
 // Cube
-let cubes = [];
-let vis = [];
 let cubeGeometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
+const visibilityStates = {
+    HIDDEN: 0,
+    HALF_VISIBLE: 1,
+    VISIBLE: 2
+};
+let cubes = Array(3).fill().map(() => Array(3).fill().map(() => Array(3).fill(null)));
+
+// Initialize cubes with visibility state
 for (let x = 0; x < 3; x++) {
-    vis[x] = [];
     for (let y = 0; y < 3; y++) {
-        vis[x][y] = [];
         for (let z = 0; z < 3; z++) {
-            vis[x][y][z] = false; // Initially, all cubes are not visible
-
-            // Create a cube
-            const cube = new THREE.Mesh(cubeGeometry, new THREE.MeshBasicMaterial(
-                {color: 0xff0000, wireframe: true, transparent: true, opacity: 0.4}
-            ));
-
-            // Position the cube
+            const cube = new THREE.Mesh(
+                cubeGeometry,
+                new THREE.MeshBasicMaterial({color: 0x9D76D0, transparent: true})
+            );
             cube.position.set(x - 1, y - 1, z - 1);
-
-            // Add cube to the scene and store it in the cubes array
+            cube.userData.visibilityState = visibilityStates.HIDDEN; // Initialize as hidden
             scene.add(cube);
-            if (!cubes[x]) cubes[x] = [];
-            if (!cubes[x][y]) cubes[x][y] = [];
             cubes[x][y][z] = cube;
         }
     }
@@ -106,16 +103,8 @@ function addIndicator() {
     })
 }
 
-function checkIndicatorZ(x, y) {
-    return !goalZ[x][y].material.wireframe;
-}
-
-function checkIndicatorX(y, z) {
-    return !goalX[y][z].material.wireframe;
-}
-
 // Deal with visibility
-function updateVisibility() {
+function updateIndicatorVisibility() {
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++) {
@@ -126,17 +115,40 @@ function updateVisibility() {
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++) {
-                cubes[x][y][z].visible = vis[x][y][z];
-                if (vis[x][y][z] && !cubes[x][y][z].material.wireframe) {
-                    if (checkIndicatorZ(x, y))
+                if (cubes[x][y][z].userData.visibilityState === visibilityStates.VISIBLE) {
+                    if (!goalZ[x][y].material.wireframe)
                         goalZ[x][y].material.color = new THREE.Color(0x00ff00);
                     else
                         goalZ[x][y].material.color = new THREE.Color(0xff0000);
 
-                    if (checkIndicatorX(y, z))
+                    if (!goalX[y][z].material.wireframe)
                         goalX[y][z].material.color = new THREE.Color(0x00ff00);
                     else
                         goalX[y][z].material.color = new THREE.Color(0xff0000);
+                }
+            }
+}
+
+function updateCubeVisibility() {
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++) {
+                let cube = cubes[x][y][z];
+                switch (cube.userData.visibilityState) {
+                    case visibilityStates.HIDDEN:
+                        cube.visible = false;
+                        cube.material.opacity = 0.0;
+                        break;
+                    case visibilityStates.HALF_VISIBLE:
+                        cube.visible = true;
+                        cube.material.opacity = 0.6;
+                        cube.material.color = new THREE.Color(0xffffff);
+                        break;
+                    case visibilityStates.VISIBLE:
+                        cube.visible = true;
+                        cube.material.opacity = 0.9;
+                        cube.material.color = new THREE.Color(0x9D76D0);
+                        break;
                 }
             }
 }
@@ -153,12 +165,11 @@ function showAdjacentCubes(x, y, z) {
         const newY = y + dy;
         const newZ = z + dz;
         const posBool = newX >= 0 && newX <= 2 && newY >= 0 && newY <= 2 && newZ >= 0 && newZ <= 2;
-        let wireBool;
-        if (posBool)
-            wireBool = cubes[newX][newY][newZ].material.wireframe;
-
-        if (posBool && wireBool)
-            vis[newX][newY][newZ] = true;
+        if (posBool) {
+            const adjacentCube = cubes[newX][newY][newZ];
+            if (adjacentCube.userData.visibilityState === visibilityStates.HIDDEN)
+                adjacentCube.userData.visibilityState = visibilityStates.HALF_VISIBLE;
+        }
     });
 }
 
@@ -166,8 +177,8 @@ function hideAdjacentCubes() {
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
-                if (cubes[x][y][z].material.wireframe === true)
-                    vis[x][y][z] = false;
+                if (cubes[x][y][z].userData.visibilityState === visibilityStates.HALF_VISIBLE)
+                    cubes[x][y][z].userData.visibilityState = visibilityStates.HIDDEN;
 }
 
 // Init
@@ -185,16 +196,13 @@ async function init() {
 
         for (let x = 0; x < 3; x++)
             for (let y = 0; y < 3; y++)
-                for (let z = 0; z < 3; z++) {
-                    vis[x][y][z] = false;
-                    cubes[x][y][z].material.wireframe = true;
-                }
+                for (let z = 0; z < 3; z++)
+                    cubes[x][y][z].userData.visibilityState = visibilityStates.HIDDEN;
 
         // Render Initial cubes
         initVis.forEach(loc => {
             const [x, y, z] = loc;
-            vis[x][y][z] = true;
-            cubes[x][y][z].material.wireframe = false;
+            cubes[x][y][z].userData.visibilityState = visibilityStates.VISIBLE;
         });
         controls.reset();
     })
@@ -277,7 +285,8 @@ function showCubesLeftAnimation() {
 function animate() {
     requestAnimationFrame(animate);
     try {
-        updateVisibility();
+        updateIndicatorVisibility();
+        updateCubeVisibility();
     } catch (error) {
         console.warn(error);
     }
@@ -306,11 +315,8 @@ window.addEventListener('keydown', (event) => {
     }
     if (event.key === 'z') {
         if (!lastPlaceCube) return;
-        lastPlaceCube.material.wireframe = true;
-        const {x, y, z} = lastPlaceCube.position;
-        vis[x + 1][y + 1][z + 1] = false;
+        lastPlaceCube.userData.visibilityState = visibilityStates.HIDDEN;
         cubesLeft++;
-        updateVisibility();
         lastPlaceCube = null;
     }
 });
@@ -335,13 +341,7 @@ function onMouseDown(event) {
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
-                if (vis[x][y][z] && !cubes[x][y][z].material.wireframe)
-                    actionCubes.push(cubes[x][y][z]);
-
-    for (let x = 0; x < 3; x++)
-        for (let y = 0; y < 3; y++)
-            for (let z = 0; z < 3; z++)
-                if (vis[x][y][z] && cubes[x][y][z].material.wireframe)
+                if (cubes[x][y][z].userData.visibilityState !== visibilityStates.HIDDEN)
                     actionCubes.push(cubes[x][y][z]);
 
     // Update the rayCaster with camera and mouse position
@@ -354,13 +354,9 @@ function onMouseDown(event) {
     else
         return;
 
-    if (targetCube.material.wireframe) {
-        // Make the adjacent cube visible
-        targetCube.material.wireframe = false;
-        const {x, y, z} = targetCube.position;
-        vis[x + 1][y + 1][z + 1] = true;
-
-        // Hide adjacent cubes
+    if (targetCube.userData.visibilityState === visibilityStates.HALF_VISIBLE) {
+        // Make the target cube visible
+        targetCube.userData.visibilityState = visibilityStates.VISIBLE;
         hideAdjacentCubes();
 
         // Mark the last placed cube
