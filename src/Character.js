@@ -1,5 +1,3 @@
-import {speedUp, actionForward} from './combat.js';
-
 
 export class Skill{
     constructor(name, effectType, value){
@@ -23,10 +21,10 @@ export class Skill{
                 target.def += this.value;
                 break;
             case 'speedUp':
-                speedUp(this.value);
+                // speedUp(this.value);
                 break;
             case 'forwardAction':
-                actionForward(this.value);
+                // actionForward(this.value);
                 break;
             default:
                 console.error('Invalid skill effect type!');
@@ -54,7 +52,7 @@ class Character {
             console.error(`Character ${this.id}: ${this.name} is already dead!`);
             return;
         }
-        let dmg;
+        let dmg = 0;
         // Check for critical hit
         if (Math.random() <= attacker.crit_rate)
             dmg = attacker.atk * attacker.crit_dmg;
@@ -101,7 +99,7 @@ export class Player extends Character {
             return;
         }
         const skill = this.skills[id];
-        console.log(`Character ${this.id}: ${this.name} is using skill on ${target.name}!`);
+        console.log(`Character ${this.id}: ${this.name} is using skill ${skill.name} on ${target.name}!`);
         skill.applyEffect(this, target);
     }
 }
@@ -110,5 +108,15 @@ export class Enemy extends Character{
     constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed, skills = []){
         super(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed);
         this.skills = skills;
+    }
+
+    useSkill(id, target) {
+        if (!this.isAlive) {
+            console.error(`Character ${this.id}: ${this.name} is dead and cannot use skill!`);
+            return;
+        }
+        const skill = this.skills[id];
+        console.log(`Character ${this.id}: ${this.name} is using skill ${skill.name} on ${target.name}!`);
+        skill.applyEffect(this, target);
     }
 }

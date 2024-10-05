@@ -41,6 +41,14 @@
             align-items: center;
         }
 
+        #status-panel {
+            width: 20vw;
+            background-color: rgba(0, 0, 0, 0.7);
+            font-family: Arial, sans-serif;
+            display: flex;
+            flex-direction: column;
+        }
+
         button {
             padding: 10px;
             margin: 10px;
@@ -66,11 +74,13 @@
         <td style="width: 60%;">
             <div id="container"></div>
         </td>
-        <td id="right-buttons" style="width: 50%; vertical-align: top;">
+        <td id="right-buttons" style="vertical-align: top;">
             <button id="attackButton">Attack</button>
-            <button id="defendButton">Defend</button>
-            <button id="skillButton">Speed Up</button>
-            <button id="forwardButton">Forward</button>
+            <button id="skillButton">Use Skill</button>
+            <button id="hyperSkillButton">Hyper Skill!</button>
+            <div id="status-panel">
+                <!-- Dynamic status panel will be added here -->
+            </div>
         </td>
     </tr>
 </table>
