@@ -152,6 +152,29 @@ function createCubes() {
         scene.add(cube);
         enemy.cube = cube;
         enemyCubes.push(cube);
+
+        // Create an HP bar background for each enemy
+        const hpBarBgGeometry = new THREE.PlaneGeometry(1, 0.15);
+        const hpBarBgMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+        const hpBarBg = new THREE.Mesh(hpBarBgGeometry, hpBarBgMaterial);
+
+        // Position the HP bar background just above the enemy cube
+        hpBarBg.position.set(cube.position.x, cube.position.y + 1.25, cube.position.z);
+        scene.add(hpBarBg);
+        enemy.hpBarBg = hpBarBg;
+
+        // Create an HP bar for each enemy
+        const hpBarGeometry = new THREE.PlaneGeometry(1, 0.1);
+        const hpBarMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+        const hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial);
+
+        // Create a unique identifier for each HP bar
+        hpBar.name = `hpBar_enemy_${enemy.id}`;
+
+        // Position the HP bar just above the enemy cube, slightly in front of the background
+        hpBar.position.set(cube.position.x, cube.position.y + 1.25, cube.position.z + 0.01);
+        scene.add(hpBar);
+        enemy.hpBar = hpBar;
     });
 }
 
@@ -427,11 +450,15 @@ function updateStatusPanel() {
     });
 
     allEnemies.forEach(enemy => {
-            const enemyStatus = document.createElement('p');
-            enemyStatus.innerHTML = enemy.name + ': ' + enemy.hp + ' HP<br>' + 'Speed: ' + enemy.speed;
-            document.getElementById('status-panel').appendChild(enemyStatus);
-        }
-    );
+        const enemyStatus = document.createElement('p');
+        enemyStatus.innerHTML = enemy.name + ': ' + enemy.hp + ' HP<br>' + 'Speed: ' + enemy.speed;
+        document.getElementById('status-panel').appendChild(enemyStatus);
+
+        const maxHp = initEnemies.find(initEnemy => initEnemy.id === enemy.id).hp;
+        const hpPercentage = enemy.hp / maxHp;
+        enemy.hpBar.scale.set(hpPercentage, 1, 1); // Adjust the scale to represent remaining HP
+        enemy.hpBar.position.x = enemy.hpBarBg.position.x - (1 - hpPercentage) / 2; // Adjust position to keep bar aligned
+    });
 }
 
 initGame();
@@ -489,6 +516,42 @@ function nextAction() {
     }
 }
 
+// Speed up all players by val
+function speedUp(target, val) {
+    target.speed += val;
+
+    actionQ.elements.forEach(action => {
+        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
+            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
+            if (action.PlayerInfo.playerId === target.id) {
+                action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
+                action.PlayerInfo.speed += val;
+            }
+        }
+    });
+
+    // Filter actions in case of minus speed-up
+    filterActions();
+}
+
+// Forward all actions by val percentage
+function actionForward(target, val) {
+    // All the action dist decrease by val
+    actionQ.elements.forEach(action => {
+        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
+            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
+            if (action.PlayerInfo.playerId === target.id) {
+                action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
+                action.index = Math.max(action.index, 0);
+            }
+        }
+
+    });
+
+    // Filter actions in case of minus forward
+    filterActions();
+}
+
 // Button logic
 document.getElementById('attackButton').addEventListener('click', function onClick() {
     const buttons = document.querySelectorAll('button');
@@ -543,40 +606,3 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 document.getElementById('TestButton').addEventListener('click', function onClick() {
     animateBoostEffect(allEnemies[0], false);
 });
-
-// Speed up all players by val
-function speedUp(target, val) {
-    target.speed += val;
-
-    actionQ.elements.forEach(action => {
-        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
-            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
-            if (action.PlayerInfo.playerId === target.id) {
-                action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
-                action.PlayerInfo.speed += val;
-            }
-        }
-    });
-
-    // Filter actions in case of minus speed-up
-    filterActions();
-}
-
-// Forward all actions by val percentage
-function actionForward(target, val) {
-    // All the action dist decrease by val
-    actionQ.elements.forEach(action => {
-        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
-            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
-            if (action.PlayerInfo.playerId === target.id) {
-                action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
-                action.index = Math.max(action.index, 0);
-            }
-        }
-
-    });
-
-    // Filter actions in case of minus forward
-    filterActions();
-}
-
