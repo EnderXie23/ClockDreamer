@@ -54,6 +54,25 @@
             margin: 10px;
             font-size: 16px;
         }
+
+        .card {
+            padding: 15px;
+            margin: 10px auto;
+            background-color: #32d632;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.5s ease;
+        }
+        .fade-in {
+            opacity: 1;
+            transform: scale(1);
+        }
+        .fade-out {
+            opacity: 0;
+            transform: scale(0.9);
+        }
     </style>
 </head>
 <body>
@@ -78,6 +97,7 @@
             <button id="attackButton">Attack</button>
             <button id="skillButton">Use Skill</button>
             <button id="hyperSkillButton">Hyper Skill!</button>
+            <button id="musicButton">Play Music</button>
             <button id="TestButton">Test</button>
             <div id="status-panel">
                 <!-- Dynamic status panel will be added here -->

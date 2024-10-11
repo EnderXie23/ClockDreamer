@@ -20,6 +20,18 @@ const pointLight = new THREE.PointLight(0xffffff, 1);
 pointLight.position.set(5, 5, 5);
 scene.add(pointLight);
 
+// Add listener
+const listener = new THREE.AudioListener();
+camera.add(listener);
+
+const audioLoader = new THREE.AudioLoader();
+const sounds = [];
+const soundFiles = [
+    'data/sounds/Buff.mp3',
+    'data/sounds/Debuff.wav',
+    'data/sounds/Attack.wav'
+];
+
 // Handle window resizing
 window.addEventListener('resize', function () {
     renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
@@ -27,18 +39,38 @@ window.addEventListener('resize', function () {
     camera.updateProjectionMatrix();
 });
 
-// Action sequence and button handling
-const actionSequence = document.getElementById('action-sequence');
+// Action sequence panel
+const actionContainer = document.getElementById('action-sequence');
 
-function addAction(content) {
-    const action = document.createElement('p');
-    action.innerHTML = content;
-    actionSequence.appendChild(action);
-    actionSequence.scrollTop = actionSequence.scrollHeight; // Auto scroll
+// Function to create a card element
+function createCardElement(name, value) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    if (name.includes("Enemy")) {
+        card.style.backgroundColor = 'rgb(209,58,58)'
+    }
+    card.innerHTML = `<strong>${name}:</strong> ${value}`;
+    return card;
+}
+
+function addAction(prefix, playerId, index) {
+    let name = prefix + playerId;
+
+    let existingCard = Array.from(actionContainer.children).find(card => card.innerHTML.includes(name) && card.innerHTML.includes(index));
+    if (!existingCard) {
+        const card = createCardElement(name, index);
+        actionContainer.appendChild(card);
+        card.classList.add('fade-in');
+    }
 }
 
 function clearActions() {
-    actionSequence.innerHTML = "";
+    Array.from(actionContainer.children).forEach((card) => {
+        card.classList.add('fade-out');
+        if (card.parentNode) {
+            actionContainer.removeChild(card);
+        }
+    });
 }
 
 // Action sequence handling
@@ -183,8 +215,12 @@ function animateAttack(attacker, target) {
             attackerCube.position.lerpVectors(position1, position2, progress);
             requestAnimationFrame(animateAttackMove);
         } else {
-            // Start shaking the screen after reaching the target
+            // Start shaking the screen and play the attack sound
             shakeScreen(0.2, 200);
+            sounds.forEach(sound => {
+                if (sound.name.includes("Attack.wav"))
+                    sound.play();
+            });
 
             // Move back to original position after attack
             const returnStartTime = performance.now();
@@ -213,7 +249,7 @@ function animateAttack(attacker, target) {
 }
 
 // Animate a boost
-function animateBoostEffect(player) {
+function animateBoostEffect(target, boost = true) {
     const ringCount = 5;
     const rings = [];
 
@@ -221,10 +257,14 @@ function animateBoostEffect(player) {
     for (let i = 0; i < ringCount; i++) {
         const boostGeometry = new THREE.RingGeometry(1.2, 1.5, 32);  // Create a ring geometry
         const boostMaterial = new THREE.MeshBasicMaterial({color: 0xffff00, side: THREE.DoubleSide});  // Yellow color
+        if (!boost) boostMaterial.color.setHex(0xff0000);  // Red color (for debuff effect
         const boostEffect = new THREE.Mesh(boostGeometry, boostMaterial);
 
         // Position each ring at ground level initially
-        boostEffect.position.set(player.cube.position.x, player.cube.position.y, player.cube.position.z);
+        if (boost)
+            boostEffect.position.set(target.cube.position.x, target.cube.position.y, target.cube.position.z);
+        else
+            boostEffect.position.set(target.cube.position.x, target.cube.position.y + 4, target.cube.position.z);
         boostEffect.rotation.x = Math.PI / 2;  // Rotate the ring to make it horizontal
 
         // Add the ring to the scene
@@ -233,7 +273,7 @@ function animateBoostEffect(player) {
     }
 
     // Animate the rings to rise up with increasing speed
-    const boostDuration = 1500; // Effect lasts for 2 seconds
+    const boostDuration = boost ? 1500 : 1000;
     const startTime = performance.now();
 
     function animateBoost() {
@@ -242,8 +282,11 @@ function animateBoostEffect(player) {
             const progress = elapsedTime / boostDuration;
             rings.forEach((ring, index) => {
                 // Move each ring upwards with increasing speed (quadratic progression)
-                const speedMultiplier = 3 + index * 5; // Increase speed for higher rings
-                ring.position.y = player.cube.position.y + Math.pow(progress, 2) * 5 * speedMultiplier;
+                let speedMultiplier = 3 + index * 5; // Increase speed for higher rings
+                if (boost)
+                    ring.position.y = target.cube.position.y + Math.pow(progress, 2) * 5 * speedMultiplier;
+                else
+                    ring.position.y = target.cube.position.y + 4 - Math.pow(progress, 2) * 5 * speedMultiplier
             });
             requestAnimationFrame(animateBoost);
         } else {
@@ -254,12 +297,18 @@ function animateBoostEffect(player) {
 
     // Start the boost animation
     animateBoost();
+    if (boost) {
+        sounds.forEach(sound => {
+            if (sound.name.includes("Buff.mp3"))
+                sound.play();
+        });
+    } else {
+        sounds.forEach(sound => {
+            if (sound.name.includes("Debuff.wav"))
+                sound.play();
+        });
+    }
 }
-
-document.getElementById('TestButton').addEventListener('click', function onClick() {
-    animateBoostEffect(allPlayers[0]);
-    animateBoostEffect(allPlayers[1]);
-});
 
 // Push action queue forward by moveVal
 function progressVal(moveVal) {
@@ -287,7 +336,7 @@ function progressVal(moveVal) {
     displayQ.elements.sort((a, b) => a.index - b.index);
     displayQ.elements.forEach(action => {
         const prefix = action.PlayerInfo.charType === "player" ? "Player " : "Enemy ";
-        addAction(prefix + action.PlayerInfo.playerId + ':<br>' + Math.round(action.index));
+        addAction(prefix, action.PlayerInfo.playerId, Math.round(action.index));
     });
 }
 
@@ -302,10 +351,23 @@ function filterActions() {
     // Remove dead players
     allPlayers = allPlayers.filter(player => player.isAlive);
     allEnemies = allEnemies.filter(enemy => enemy.isAlive);
+    progressVal(0);
 }
 
 // Initialize the game
 function initGame() {
+    // Load sounds
+    soundFiles.forEach((file) => {
+        const sound = new THREE.Audio(listener);
+        audioLoader.load(file, function (buffer) {
+            sound.setBuffer(buffer);
+            sound.setLoop(false);
+            sound.setVolume(1);
+            sound.name = file;
+            sounds.push(sound);
+        });
+    });
+
     // Clone the initial players and enemies
     allPlayers = [];
     initPlayers.forEach(player => {
@@ -434,7 +496,9 @@ document.getElementById('attackButton').addEventListener('click', function onCli
 
     activePlayer.useSkill(0, allEnemies[0]);
     animateAttack(activePlayer, allEnemies[0]);
-    setTimeout(afterAction, 1100);
+    setTimeout(() => {
+        afterAction();
+    }, 1100);
 });
 document.getElementById('skillButton').addEventListener('click', function onClick() {
     const buttons = document.querySelectorAll('button');
@@ -442,11 +506,15 @@ document.getElementById('skillButton').addEventListener('click', function onClic
 
     activePlayer.useSkill(1, activePlayer);
     animateBoostEffect(activePlayer);
-    setTimeout(afterAction, 1500);
+    setTimeout(() => {
+        afterAction();
+    }, 1500);
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
-    speedUp(20);
-    actionForward(0.45);
+    allPlayers.forEach(player => {
+        speedUp(player, 20);
+        actionForward(player, 0.45);
+    });
     allPlayers.forEach(player => {
         animateBoostEffect(player);
     });
@@ -454,34 +522,60 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
     console.log("Speed up and forward action!");
 });
 
+const bgm = new THREE.Audio(listener);
+audioLoader.load('data/sounds/Background.mp3', function (buffer) {
+    bgm.setBuffer(buffer);
+    bgm.setLoop(true);
+    bgm.setVolume(0.3);
+});
+
+document.getElementById('musicButton').addEventListener('click', function onClick() {
+    // Check the inner html of the button
+    if (document.getElementById('musicButton').innerHTML === "Play Music") {
+        bgm.play();
+        document.getElementById('musicButton').innerHTML = "Pause Music";
+    } else {
+        bgm.pause();
+        document.getElementById('musicButton').innerHTML = "Play Music";
+    }
+});
+
+document.getElementById('TestButton').addEventListener('click', function onClick() {
+    animateBoostEffect(allEnemies[0], false);
+});
+
 // Speed up all players by val
-function speedUp(val) {
+function speedUp(target, val) {
+    target.speed += val;
+
     actionQ.elements.forEach(action => {
-        if (action.PlayerInfo.charType === "player") {
-            action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
-            action.PlayerInfo.speed += val;
-            allPlayers.find(player => player.id === action.PlayerInfo.playerId).speed += val;
+        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
+            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
+            if (action.PlayerInfo.playerId === target.id) {
+                action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
+                action.PlayerInfo.speed += val;
+            }
         }
     });
 
-    // Update action queue
-    progressVal(0);
     // Filter actions in case of minus speed-up
     filterActions();
 }
 
 // Forward all actions by val percentage
-function actionForward(val) {
+function actionForward(target, val) {
     // All the action dist decrease by val
     actionQ.elements.forEach(action => {
-        if (action.PlayerInfo.charType === "player") {
-            action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
-            action.index = Math.max(action.index, 0);
+        if ((action.PlayerInfo.charType === "player" && target instanceof Player)
+            || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
+            if (action.PlayerInfo.playerId === target.id) {
+                action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
+                action.index = Math.max(action.index, 0);
+            }
         }
+
     });
 
-    // Update action queue
-    progressVal(0);
     // Filter actions in case of minus forward
     filterActions();
 }
