@@ -8,7 +8,7 @@ scene.background = new THREE.Color(0xadd8e6);
 
 // Add camera
 const camera = new THREE.PerspectiveCamera(75, window.innerWidth * 0.6 / window.innerHeight, 0.1, 1000);
-camera.position.set(4, 6, 6);
+camera.position.set(3, 4, 7);
 camera.lookAt(0, 0, 0);
 
 const renderer = new THREE.WebGLRenderer();
@@ -103,6 +103,7 @@ class PriorityQueue {
     }
 }
 
+// All the global variables
 const actionQ = new PriorityQueue();
 let skillSet = [
     new Skill("Attack", "damage", 10),
@@ -117,11 +118,26 @@ let initPlayers = [
 let allPlayers;
 let initEnemies = [
     new Enemy(1, "Enemy 1", 90, 10000, 100, 100, 0.6, 2, 200, skillSet),
+    new Enemy(2, "Enemy 2", 90, 10000, 200, 70, 0.6, 2, 230, skillSet),
 ];
 let allEnemies;
 let activePlayer;
 let currentVal = 0;
 let round = 0;
+
+// For target selection
+let handleClick = null;
+let handleKeyDown = null;
+
+let attackMethod = 1; // 1: atk 2: skill 3: hyperSkill
+let currentTarget = null;
+let currentTargetCube = null;
+const indicatorGeometry = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+const indicatorMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true});
+let selectionIndicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+selectionIndicator.visible = false;
+scene.add(selectionIndicator);
+let selectorActive = false;
 
 const playerCubes = [];
 const enemyCubes = [];
@@ -187,7 +203,7 @@ function animate() {
 animate();
 
 // Screen shaker
-function shakeScreen(intensity = 0.1, duration = 500) {
+function shakeScreen(intensity = 1, duration = 200) {
     const originalPosition = camera.position.clone();
     const startTime = performance.now();
 
@@ -239,7 +255,7 @@ function animateAttack(attacker, target) {
             requestAnimationFrame(animateAttackMove);
         } else {
             // Start shaking the screen and play the attack sound
-            shakeScreen(0.2, 200);
+            shakeScreen(0.3, 300);
             sounds.forEach(sound => {
                 if (sound.name.includes("Attack.wav"))
                     sound.play();
@@ -365,15 +381,41 @@ function progressVal(moveVal) {
 
 // Filter illegal actions in the queue
 function filterActions() {
+    // Remove dead players
+    allPlayers.forEach(player => {
+        if (!player.isAlive) {
+            actionQ.elements.forEach(action => {
+                if (action.PlayerInfo.charType === 'player' &&
+                    action.PlayerInfo.playerId === player.id) {
+                    action.PlayerInfo.speed = 0;
+                }
+            });
+            scene.remove(player.cube);
+        }
+    });
+    allPlayers = allPlayers.filter(player => player.isAlive);
+
+    // Remove dead enemies
+    allEnemies.forEach(enemy => {
+        if (!enemy.isAlive) {
+            actionQ.elements.forEach(action => {
+                if (action.PlayerInfo.charType === 'enemy' &&
+                    action.PlayerInfo.playerId === enemy.id) {
+                    action.PlayerInfo.speed = 0;
+                }
+            });
+            scene.remove(enemy.cube);
+            scene.remove(enemy.hpBar);
+            scene.remove(enemy.hpBarBg);
+        }
+    });
+    allEnemies = allEnemies.filter(enemy => enemy.isAlive);
+
     // Remove items in actionQ that have minus speed / index not reachable
     actionQ.elements = actionQ.elements.filter(action => action.PlayerInfo.speed > 0);
     actionQ.elements = actionQ.elements.filter(action => action.index <= action.PlayerInfo.actionVal);
 
     actionQ.elements.sort((a, b) => a.index - b.index);
-
-    // Remove dead players
-    allPlayers = allPlayers.filter(player => player.isAlive);
-    allEnemies = allEnemies.filter(enemy => enemy.isAlive);
     progressVal(0);
 }
 
@@ -463,6 +505,126 @@ function updateStatusPanel() {
 
 initGame();
 
+// Target Selector
+function targetSelector(targetType) {
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2();
+    selectionIndicator.visible = false;
+    selectorActive = true;
+
+    if(handleClick){
+        window.removeEventListener('click', handleClick);
+    }
+
+    if(handleKeyDown){
+        window.removeEventListener('keydown', handleKeyDown);
+    }
+
+    handleClick = function (event) {
+        if (selectorActive) {
+            handleSelectionChange(event, raycaster, mouse);
+        }
+    }
+
+    handleKeyDown = function (event) {
+        if (selectorActive) {
+            if (event.key === 'a') {
+                switchToAdjacentTarget(-1);
+            } else if (event.key === 'd') {
+                switchToAdjacentTarget(1);
+            }
+        }
+    }
+
+    window.addEventListener('click', handleClick);
+    window.addEventListener('keydown', handleKeyDown);
+
+    // Set initial selection based on target type
+    if (targetType === 'player' && allPlayers.length > 0) {
+        currentTarget = allPlayers[0];
+        currentTargetCube = allPlayers[0].cube;
+        positionSelectionIndicator(currentTargetCube);
+    } else if (targetType === 'enemy' && allEnemies.length > 0) {
+        currentTarget = allEnemies[0];
+        currentTargetCube = allEnemies[0].cube;
+        positionSelectionIndicator(currentTargetCube);
+    }
+
+    function handleSelectionChange(event, raycaster, mouse) {
+        // Calculate mouse position in normalized device coordinates
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+        // Update the raycaster with the mouse position
+        raycaster.setFromCamera(mouse, camera);
+
+        // Create an array of objects to check for intersection based on target type
+        let objectsToCheck = [];
+        if (targetType === 'player') {
+            objectsToCheck = playerCubes;
+        } else if (targetType === 'enemy') {
+            objectsToCheck = enemyCubes;
+        }
+
+        // Find intersections
+        const intersects = raycaster.intersectObjects(objectsToCheck);
+
+        if (intersects.length > 0) {
+            // Get the first intersected object
+            const selectedObject = intersects[0].object;
+
+            // Deselect the previous selection if it's different from the new selection
+            if (currentTargetCube && currentTargetCube !== selectedObject) {
+                deselectCurrentSelection();
+            }
+
+            // Set the new selection
+            currentTargetCube = selectedObject;
+            positionSelectionIndicator(currentTargetCube);
+            allEnemies.forEach(enemy => {
+                if (enemy.cube === selectedObject) {
+                    currentTarget = enemy;
+                }
+            });
+            allPlayers.forEach(player => {
+                if (player.cube === selectedObject) {
+                    currentTarget = player;
+                }
+            });
+        }
+    }
+
+    function switchToAdjacentTarget(direction) {
+        console.log("Switching to adjacent target for " + targetType + "!");
+        let targetArray = targetType === 'player' ? allPlayers : allEnemies;
+        let currentIndex = targetArray.findIndex(target => target.cube === currentTargetCube);
+
+        if (currentIndex !== -1) {
+            let newIndex = (currentIndex + direction + targetArray.length) % targetArray.length;
+            currentTarget = targetArray[newIndex];
+            currentTargetCube = currentTarget.cube;
+            positionSelectionIndicator(currentTargetCube);
+        }
+    }
+
+    function positionSelectionIndicator(selectedObject) {
+        selectionIndicator.visible = true;
+        selectionIndicator.position.set(selectedObject.position.x, selectedObject.position.y, selectedObject.position.z);
+    }
+
+    function deselectCurrentSelection() {
+        if (currentTargetCube) {
+            selectionIndicator.visible = false;
+            currentTargetCube = null;
+        }
+    }
+}
+
+function stopTargetSelector() {
+    selectorActive = false;
+    selectionIndicator.visible = false;
+}
+
 // Logic after an action is performed
 function afterAction() {
     activePlayer = null;
@@ -504,14 +666,19 @@ function nextAction() {
         console.log("Player " + info.playerId + " is acting!");
         activePlayer = allPlayers.find(player => player.id === info.playerId);
 
+        // Auto select the target assuming an attack
+        attackMethod = 1;
+        stopTargetSelector();
+        targetSelector('enemy');
         // Enable the buttons
         const buttons = document.querySelectorAll('button');
         buttons.forEach(button => button.disabled = false);
     } else {
         console.log("Enemy " + info.playerId + " is acting!");
         activePlayer = allEnemies.find(enemy => enemy.id === info.playerId);
-        activePlayer.useSkill(0, allPlayers[0]);
-        animateAttack(activePlayer, allPlayers[0]);
+        const randomIndex = Math.floor(Math.random() * allPlayers.length);
+        activePlayer.useSkill(0, allPlayers[randomIndex]);
+        animateAttack(activePlayer, allPlayers[randomIndex]);
         setTimeout(afterAction, 1100);
     }
 }
@@ -554,24 +721,38 @@ function actionForward(target, val) {
 
 // Button logic
 document.getElementById('attackButton').addEventListener('click', function onClick() {
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => button.disabled = true);
+    if (attackMethod === 1) {
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => button.disabled = true);
+        stopTargetSelector();
 
-    activePlayer.useSkill(0, allEnemies[0]);
-    animateAttack(activePlayer, allEnemies[0]);
-    setTimeout(() => {
-        afterAction();
-    }, 1100);
+        activePlayer.useSkill(0, currentTarget);
+        animateAttack(activePlayer, currentTarget);
+        setTimeout(() => {
+            afterAction();
+        }, 1100);
+    } else {
+        stopTargetSelector();
+        attackMethod = 1;
+        targetSelector('enemy');
+    }
 });
 document.getElementById('skillButton').addEventListener('click', function onClick() {
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => button.disabled = true);
+    if (attackMethod === 2) {
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => button.disabled = true);
+        stopTargetSelector();
 
-    activePlayer.useSkill(1, activePlayer);
-    animateBoostEffect(activePlayer);
-    setTimeout(() => {
-        afterAction();
-    }, 1500);
+        activePlayer.useSkill(1, currentTarget);
+        animateBoostEffect(currentTarget);
+        setTimeout(() => {
+            afterAction();
+        }, 1500);
+    } else {
+        stopTargetSelector();
+        attackMethod = 2;
+        targetSelector('player');
+    }
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
     allPlayers.forEach(player => {
@@ -604,5 +785,6 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    animateBoostEffect(allEnemies[0], false);
+    stopTargetSelector();
+    targetSelector('player');
 });

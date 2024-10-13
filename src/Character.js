@@ -67,9 +67,19 @@ class Character {
 
         // Check for defense
         dmg *= (attacker.atk) / (attacker.atk + this.def);
+        dmg = Math.floor(dmg);
 
-        this.hp -= dmg;
+        this.onLoseHp(dmg);
         console.log(`Character ${this.id}: ${this.name} took ${dmg} damage!`);
+    }
+
+    onLoseHp(amount) {
+        if (!this.isAlive) {
+            console.error(`Character ${this.id}: ${this.name} is already dead!`);
+            return;
+        }
+        this.hp -= amount;
+        console.log(`Character ${this.id}: ${this.name} took ${amount} damage!`);
         if (this.hp <= 0) {
             this.hp = 0;
             this.isAlive = false;
