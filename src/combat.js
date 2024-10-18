@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {Skill, Player, Enemy} from './Character.js';
+import {Skill, Player, Enemy, Buff} from './Character.js';
 
 // Initializing Three.js scene
 const container = document.getElementById('container');
@@ -105,11 +105,20 @@ class PriorityQueue {
 
 // All the global variables
 const actionQ = new PriorityQueue();
+
+// Skill sets and buffs
 let skillSet = [
     new Skill("Attack", "damage", 10),
     new Skill("Heal", "heal", 1000),
     new Skill("SpeedUp", "speedUp", 20)
 ];
+
+let initBuffs = [
+    new Buff("IncAtk_players", "incAtk", 50, 2),
+];
+let allBuffs = [];
+
+// For player and enemy initialization
 let initPlayers = [
     new Player(1, "Player 1", 90, 10000, 100, 100, 0.6, 2, 230, skillSet),
     new Player(2, "Player 2", 90, 10000, 100, 100, 0.6, 2, 190, skillSet),
@@ -121,6 +130,8 @@ let initEnemies = [
     new Enemy(2, "Enemy 2", 90, 10000, 200, 70, 0.6, 2, 230, skillSet),
 ];
 let allEnemies;
+
+// For action controls
 let activePlayer;
 let currentVal = 0;
 let round = 0;
@@ -155,6 +166,29 @@ function createCubes() {
         scene.add(cube);
         player.cube = cube;
         playerCubes.push(cube);
+
+        // Create an HP bar background for each enemy
+        const hpBarBgGeometry = new THREE.PlaneGeometry(1, 0.15);
+        const hpBarBgMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+        const hpBarBg = new THREE.Mesh(hpBarBgGeometry, hpBarBgMaterial);
+
+        // Position the HP bar background just above the enemy cube
+        hpBarBg.position.set(cube.position.x, cube.position.y - 0.5, cube.position.z + 1);
+        scene.add(hpBarBg);
+        player.hpBarBg = hpBarBg;
+
+        // Create an HP bar for each enemy
+        const hpBarGeometry = new THREE.PlaneGeometry(1, 0.1);
+        const hpBarMaterial = new THREE.MeshBasicMaterial({color: 0x00ff00});
+        const hpBar = new THREE.Mesh(hpBarGeometry, hpBarMaterial);
+
+        // Create a unique identifier for each HP bar
+        hpBar.name = `hpBar_player_${player.id}`;
+
+        // Position the HP bar just above the enemy cube, slightly in front of the background
+        hpBar.position.set(cube.position.x, cube.position.y - 0.5, cube.position.z + 1.01);
+        scene.add(hpBar);
+        player.hpBar = hpBar;
     });
 
     allEnemies.forEach(enemy => {
@@ -352,25 +386,25 @@ function animateBoostEffect(target, boost = true) {
 // Push action queue forward by moveVal
 function progressVal(moveVal) {
     document.getElementById('val-indicator').textContent = 'Current action value: ' + Math.round(currentVal);
-    // console.log('Current action value: ' + currentVal);
 
     clearActions();
     let displayQ = new PriorityQueue();
     actionQ.elements.sort((a, b) => a.index - b.index);
-    actionQ.elements.forEach(action => {
+
+    for (let i = 0; i < actionQ.elements.length; i++) {
+        let action = actionQ.elements[i];
         // Move the action queue forward
         action.PlayerInfo.actionVal -= moveVal;
         action.index -= moveVal;
 
         displayQ.enqueue(action.index, action.PlayerInfo);
 
+        if (i === 0) continue;
         // Show two rounds in advance
         if (action.PlayerInfo.actionVal - action.index >= action.PlayerInfo.dist / action.PlayerInfo.speed)
-            displayQ.elements.push({
-                index: action.index + action.PlayerInfo.dist / action.PlayerInfo.speed,
-                PlayerInfo: action.PlayerInfo
-            });
-    });
+            displayQ.enqueue(action.index + action.PlayerInfo.dist / action.PlayerInfo.speed,
+                action.PlayerInfo);
+    }
 
     displayQ.elements.sort((a, b) => a.index - b.index);
     displayQ.elements.forEach(action => {
@@ -443,6 +477,17 @@ function initGame() {
         allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
     });
 
+    // Clone the initial buffs
+    allBuffs = [];
+    initBuffs.forEach(buff => {
+        if (buff.name.includes("_players")) {
+            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allPlayers));
+        }
+        if (buff.name.includes("_enemies")) {
+            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allEnemies));
+        }
+    });
+
     // Init character cubes
     createCubes();
 
@@ -455,22 +500,43 @@ function initGame() {
     startRound();
 }
 
+// Apply all the buffs
+function applyBuffs() {
+    allBuffs = allBuffs.filter(buff => buff.rounds > 0);
+    allBuffs.forEach(buff => {
+        buff.applyEffect();
+    });
+}
+
 // Start a new round
 function startRound() {
     round += 1;
     document.getElementById('round-indicator').textContent = 'Round ' + round;
 
-    // Insert players and enemies into actionQ
+    // Reset the status of all players and enemies
     allPlayers.forEach(player => {
-        player.speed = initPlayers.find(initPlayer => initPlayer.id === player.id).speed;
+        let init_player = initPlayers.find(initPlayer => initPlayer.id === player.id);
+        player.atk = init_player.atk;
+        player.def = init_player.def;
+        player.crit_rate = init_player.crit_rate;
+        player.crit_dmg = init_player.crit_dmg;
+        player.speed = init_player.speed;
         let info = new PlayerInfo(player.id, player.speed);
         actionQ.enqueue(info.dist / player.speed, info);
     });
     allEnemies.forEach(enemy => {
-        enemy.speed = initEnemies.find(initEnemy => initEnemy.id === enemy.id).speed;
+        let init_enemy = initEnemies.find(initEnemy => initEnemy.id === enemy.id);
+        enemy.atk = init_enemy.atk;
+        enemy.def = init_enemy.def;
+        enemy.crit_rate = init_enemy.crit_rate;
+        enemy.crit_dmg = init_enemy.crit_dmg;
+        enemy.speed = init_enemy.speed;
         let info = new PlayerInfo(enemy.id, enemy.speed, "enemy");
         actionQ.enqueue(info.dist / enemy.speed, info);
     });
+
+    // Apply all the buffs
+    applyBuffs();
 
     // Update status panel
     updateStatusPanel();
@@ -482,18 +548,23 @@ function startRound() {
     nextAction();
 }
 
-// Update the status panel
+// Update the hp bars and status panel
 function updateStatusPanel() {
     document.getElementById('status-panel').innerHTML = "";
     allPlayers.forEach(player => {
         const playerStatus = document.createElement('p');
-        playerStatus.innerHTML = player.name + ': ' + player.hp + ' HP<br>' + 'Speed: ' + player.speed;
+        playerStatus.innerHTML = player.name + ': ' + player.hp + ' HP<br>' + 'Atk: ' + player.atk + '    Def: ' + player.def + '<br>Speed: ' + player.speed;
         document.getElementById('status-panel').appendChild(playerStatus);
+
+        const maxHp = initPlayers.find(initPlayer => initPlayer.id === player.id).hp;
+        const hpPercentage = player.hp / maxHp;
+        player.hpBar.scale.set(hpPercentage, 1, 1); // Adjust the scale to represent remaining HP
+        player.hpBar.position.x = player.hpBarBg.position.x - (1 - hpPercentage) / 2; // Adjust position to keep bar aligned
     });
 
     allEnemies.forEach(enemy => {
         const enemyStatus = document.createElement('p');
-        enemyStatus.innerHTML = enemy.name + ': ' + enemy.hp + ' HP<br>' + 'Speed: ' + enemy.speed;
+        enemyStatus.innerHTML = enemy.name + ': ' + enemy.hp + ' HP<br>' + 'Atk: ' + enemy.atk + '    Def: ' + enemy.def + '<br>Speed: ' + enemy.speed;
         document.getElementById('status-panel').appendChild(enemyStatus);
 
         const maxHp = initEnemies.find(initEnemy => initEnemy.id === enemy.id).hp;
@@ -512,11 +583,11 @@ function targetSelector(targetType) {
     selectionIndicator.visible = false;
     selectorActive = true;
 
-    if(handleClick){
+    if (handleClick) {
         window.removeEventListener('click', handleClick);
     }
 
-    if(handleKeyDown){
+    if (handleKeyDown) {
         window.removeEventListener('keydown', handleKeyDown);
     }
 
@@ -712,7 +783,6 @@ function actionForward(target, val) {
                 action.index = Math.max(action.index, 0);
             }
         }
-
     });
 
     // Filter actions in case of minus forward
@@ -785,6 +855,5 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    stopTargetSelector();
-    targetSelector('player');
+    console.log(actionQ.elements);
 });

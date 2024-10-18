@@ -1,13 +1,40 @@
+export class Buff {
+    constructor(name, effectType, value, rounds, targets =[]) {
+        this.name = name;
+        this.effectType = effectType;
+        this.value = value;
+        this.rounds = rounds;
+        this.targets = targets;
+    }
 
-export class Skill{
-    constructor(name, effectType, value){
+    applyEffect() {
+        if (this.rounds <= 0) return;
+        this.targets.forEach(target => {
+            switch (this.effectType) {
+                case 'incAtk':
+                    target.atk += this.value;
+                    break;
+                case 'incDef':
+                    target.def += this.value;
+                    break;
+                case 'heal':
+                    target.onHeal(this.value);
+                    break;
+            }
+        });
+        this.rounds--;
+    }
+}
+
+export class Skill {
+    constructor(name, effectType, value) {
         this.name = name;
         this.effectType = effectType;
         this.value = value;
     }
 
-    applyEffect(user, target){
-        switch (this.effectType){
+    applyEffect(user, target) {
+        switch (this.effectType) {
             case 'damage':
                 target.onDamage(user, this.value);
                 break;
@@ -70,7 +97,6 @@ class Character {
         dmg = Math.floor(dmg);
 
         this.onLoseHp(dmg);
-        console.log(`Character ${this.id}: ${this.name} took ${dmg} damage!`);
     }
 
     onLoseHp(amount) {
@@ -114,8 +140,8 @@ export class Player extends Character {
     }
 }
 
-export class Enemy extends Character{
-    constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed, skills = []){
+export class Enemy extends Character {
+    constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed, skills = []) {
         super(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed);
         this.skills = skills;
     }
