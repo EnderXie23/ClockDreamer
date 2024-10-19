@@ -150,8 +150,17 @@ selectionIndicator.visible = false;
 scene.add(selectionIndicator);
 let selectorActive = false;
 
+// Player and enemy cubes
 const playerCubes = [];
 const enemyCubes = [];
+
+// For the camera animation
+let animationProgress = 0;
+let spinCenter;
+let spinLookAt;
+let spinDegree = Math.PI / 2;
+let cameraPos = camera.position.clone();
+let translateDir = new THREE.Vector3(0.1, 0, 0.1);
 
 // Create cubes for players and enemies
 function createCubes() {
@@ -235,6 +244,69 @@ function animate() {
 }
 
 animate();
+
+// Easing function for spin speed
+function easeInOut(t) {
+    return t < 0.5 ? 0.8 * (2 * t * t) + 0.1 * t : 0.8 * (-1 + (4 - 2 * t) * t) + 0.1 * t;
+}
+
+// Camera spin animations
+function animateCameraSpin() {
+    const radius = Math.sqrt(Math.pow(cameraPos.x - spinCenter.x, 2) + Math.pow(cameraPos.z - spinCenter.z, 2));
+    const initProgress = Math.atan2(cameraPos.z - spinCenter.z, cameraPos.x - spinCenter.x);
+
+    // Adjust spin speed using easing function
+    const easedProgress = easeInOut(animationProgress / spinDegree);
+    animationProgress += 0.02 * (1 - easedProgress); // Slow start and end, faster in the middle
+
+    if (animationProgress > spinDegree - 0.05) {
+        console.log("Animation complete!");
+        animationProgress = 0;
+        return;
+    }
+
+    // Calculate the new camera position along a circular path
+    const x = radius * Math.cos(initProgress + animationProgress);
+    const z = radius * Math.sin(initProgress + animationProgress);
+    camera.position.set(x, spinCenter.y, z);
+
+    // Keep looking at the center of the scene
+    camera.lookAt(spinLookAt);
+
+    // Render the scene
+    renderer.render(scene, camera);
+    requestAnimationFrame(animateCameraSpin);
+}
+
+// Function to animate camera translation
+function animateCameraTranslation() {
+    let translationProgress = 0;
+
+    function translateCamera() {
+        // Update the progress (range from 0 to 1)
+        translationProgress += 0.01;
+        if (translationProgress > 1) {
+            translationProgress = 0;
+            return;
+        }
+
+        // Adjust translation speed using easing function
+        const easedProgress = easeInOut(translationProgress);
+
+        // Lerp (linear interpolate) the camera position from start to end
+        const targetPos = camera.position.clone().add(translateDir);
+        camera.position.lerp(targetPos, easedProgress);
+
+        // Keep looking at the center of the scene
+        camera.lookAt(0, 0, 0);
+
+        // Render the scene
+        renderer.render(scene, camera);
+        requestAnimationFrame(translateCamera);
+    }
+
+    translateCamera();
+}
 
 // Screen shaker
 function shakeScreen(intensity = 1, duration = 200) {
@@ -855,5 +927,13 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    console.log(actionQ.elements);
+    spinCenter = new THREE.Vector3(0, 4, 0);
+    spinLookAt = new THREE.Vector3(0, 0, 0);
+    cameraPos = camera.position.clone();
+    spinDegree = Math.PI / 6;
+    animateCameraSpin();
+    setTimeout(() => {
+        translateDir = new THREE.Vector3(0, 0, 0.1);
+        animateCameraTranslation();
+    }, 1200);
 });
