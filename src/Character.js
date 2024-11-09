@@ -65,6 +65,7 @@ class Character {
         this.name = name;
         this.lv = lv;
         this.hp = hp;
+        this.maxHp = hp;
         this.atk = atk;
         this.def = def;
         this.crit_rate = crit_rate;
@@ -119,6 +120,7 @@ class Character {
             return;
         }
         this.hp += amount;
+        this.hp = Math.min(this.hp, this.maxHp);
         console.log(`Character ${this.id}: ${this.name} healed for ${amount}!`);
     }
 }

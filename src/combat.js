@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import {gsap} from 'gsap';
 import {Skill, Player, Enemy, Buff} from './Character.js';
 
 // Initializing Three.js scene
@@ -11,14 +12,37 @@ const camera = new THREE.PerspectiveCamera(75, window.innerWidth * 0.6 / window.
 camera.position.set(3, 4, 7);
 camera.lookAt(0, 0, 0);
 
+// Set up renderer
 const renderer = new THREE.WebGLRenderer();
 renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 container.appendChild(renderer.domElement);
 
 // Add point light
-const pointLight = new THREE.PointLight(0xffffff, 1);
-pointLight.position.set(5, 5, 5);
+const pointLight = new THREE.PointLight(0xffffff, 1500);
+pointLight.position.set(-5, 15, 0);
+pointLight.castShadow = true;
 scene.add(pointLight);
+
+// Add ambient light
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+// Load floor texture
+const textureLoader = new THREE.TextureLoader();
+const floorTexture = textureLoader.load('data/textures/grassy_terrain.jpg');
+floorTexture.minFilter = THREE.LinearFilter;
+floorTexture.magFilter = THREE.LinearFilter;
+
+// Create floor plane
+const groundGeometry = new THREE.PlaneGeometry(50, 50);
+const groundMaterial = new THREE.MeshStandardMaterial({map: floorTexture});
+const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.position.set(0, -0.55, 0);
+ground.receiveShadow = true;
+scene.add(ground);
 
 // Add listener
 const listener = new THREE.AudioListener();
@@ -167,11 +191,13 @@ function createCubes() {
     allPlayers.forEach(player => {
         // Create a cube for each player
         const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshBasicMaterial({color: 0x00ff00});
+        const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
         const cube = new THREE.Mesh(geometry, material);
 
         // Add the cube to the scene
         cube.position.set(player.id * 2 - 4, 0, 2);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
         scene.add(cube);
         player.cube = cube;
         playerCubes.push(cube);
@@ -182,7 +208,7 @@ function createCubes() {
         const hpBarBg = new THREE.Mesh(hpBarBgGeometry, hpBarBgMaterial);
 
         // Position the HP bar background just above the enemy cube
-        hpBarBg.position.set(cube.position.x, cube.position.y - 0.5, cube.position.z + 1);
+        hpBarBg.position.set(cube.position.x, cube.position.y - 0.2, cube.position.z + 1);
         scene.add(hpBarBg);
         player.hpBarBg = hpBarBg;
 
@@ -195,7 +221,7 @@ function createCubes() {
         hpBar.name = `hpBar_player_${player.id}`;
 
         // Position the HP bar just above the enemy cube, slightly in front of the background
-        hpBar.position.set(cube.position.x, cube.position.y - 0.5, cube.position.z + 1.01);
+        hpBar.position.set(cube.position.x, cube.position.y - 0.2, cube.position.z + 1.01);
         scene.add(hpBar);
         player.hpBar = hpBar;
     });
@@ -203,11 +229,13 @@ function createCubes() {
     allEnemies.forEach(enemy => {
         // Create a cube for each enemy
         const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshBasicMaterial({color: 0xff0000});
+        const material = new THREE.MeshStandardMaterial({color: 0xff0000});
         const cube = new THREE.Mesh(geometry, material);
 
         // Add the cube to the scene
         cube.position.set(enemy.id * 2 - 4, 0, -3);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
         scene.add(cube);
         enemy.cube = cube;
         enemyCubes.push(cube);
@@ -252,22 +280,23 @@ function easeInOut(t) {
 
 // Camera spin animations
 function animateCameraSpin() {
+    const reversed = spinDegree < 0;
     const radius = Math.sqrt(Math.pow(cameraPos.x - spinCenter.x, 2) + Math.pow(cameraPos.z - spinCenter.z, 2));
     const initProgress = Math.atan2(cameraPos.z - spinCenter.z, cameraPos.x - spinCenter.x);
 
     // Adjust spin speed using easing function
-    const easedProgress = easeInOut(animationProgress / spinDegree);
+    const easedProgress = easeInOut(animationProgress / Math.abs(spinDegree));
     animationProgress += 0.02 * (1 - easedProgress); // Slow start and end, faster in the middle
 
-    if (animationProgress > spinDegree - 0.05) {
+    if (animationProgress > Math.abs(spinDegree) - 0.05) {
         console.log("Animation complete!");
         animationProgress = 0;
         return;
     }
 
     // Calculate the new camera position along a circular path
-    const x = radius * Math.cos(initProgress + animationProgress);
-    const z = radius * Math.sin(initProgress + animationProgress);
+    const x = radius * Math.cos(initProgress + (reversed? -1 : 1) * animationProgress);
+    const z = radius * Math.sin(initProgress + (reversed? -1 : 1) * animationProgress);
     camera.position.set(x, spinCenter.y, z);
 
     // Keep looking at the center of the scene
@@ -453,6 +482,59 @@ function animateBoostEffect(target, boost = true) {
                 sound.play();
         });
     }
+}
+
+// Animate a hyper attack
+function animateHyperAttack(attacker) {
+    const playerCube = attacker.cube;
+
+    // Create an animation for the player attack using GSAP
+    const originalPosition = playerCube.position.clone();
+    const originalScale = playerCube.scale.clone();
+    const enemyPosition = allEnemies[1].cube.position.clone();
+
+    // Animation sequence: Jump up, grow, and smash into enemies
+    gsap.timeline()
+        .to(playerCube.position, {y: originalPosition.y + 3, duration: 0.5, ease: "power2.out"}) // Jump up
+        .to(playerCube.scale, {x: 5, y: 5, z: 5, duration: 0.3, ease: "power2.out"}) // Grow
+        .to(playerCube.position, {
+            x: enemyPosition.x,
+            y: enemyPosition.y + 6,
+            z: enemyPosition.z,
+            duration: 0.5,
+            ease: "bounce.out",
+            onComplete: () => { // Smash down
+                // Check for collisions with enemies
+                allEnemies.forEach(enemy => {
+                    const distance = playerCube.position.distanceTo(enemy.cube.position);
+                    if (distance < 2) {
+                        console.log(`Enemy ${enemy.id} got hit!`);
+                        // Implement damage logic here if needed
+                    }
+                });
+            }
+        })
+        .to(playerCube.position, {
+            x: enemyPosition.x,
+            y: enemyPosition.y,
+            z: enemyPosition.z,
+            duration: 0.5,
+            ease: "bounce.out",
+        })
+        .to(playerCube.scale, {
+            x: originalScale.x,
+            y: originalScale.y,
+            z: originalScale.z,
+            duration: 0.3,
+            ease: "power2.in"
+        }) // Reset size
+        .to(playerCube.position, {
+            x: originalPosition.x,
+            y: originalPosition.y,
+            z: originalPosition.z,
+            duration: 0.3,
+            ease: "power2.in"
+        }); // Reset position
 }
 
 // Push action queue forward by moveVal
@@ -906,6 +988,9 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
     });
     updateStatusPanel();
     console.log("Speed up and forward action!");
+    const ultraBuff = new Buff("Ultra", "incAtk", 100, 1, allPlayers);
+    ultraBuff.applyEffect();
+    updateStatusPanel();
 });
 
 const bgm = new THREE.Audio(listener);
@@ -930,10 +1015,26 @@ document.getElementById('TestButton').addEventListener('click', function onClick
     spinCenter = new THREE.Vector3(0, 4, 0);
     spinLookAt = new THREE.Vector3(0, 0, 0);
     cameraPos = camera.position.clone();
-    spinDegree = Math.PI / 6;
+    const startPos = camera.position.clone();
+    spinDegree = Math.PI / 8;
     animateCameraSpin();
     setTimeout(() => {
         translateDir = new THREE.Vector3(0, 0, 0.1);
         animateCameraTranslation();
-    }, 1200);
+        setTimeout(() => {
+            animateHyperAttack(allPlayers[0]);
+            setTimeout(()=>{
+                translateDir = new THREE.Vector3(0, 0, -0.1);
+                animateCameraTranslation();
+                setTimeout(()=>{
+                    cameraPos = camera.position.clone();
+                    spinDegree = -Math.PI / 8;
+                    animateCameraSpin();
+                    setTimeout(()=>{
+                        camera.position.set(startPos.x, startPos.y, startPos.z);
+                    },1200);
+                }, 1900);
+            }, 1600);
+        }, 700);
+    }, 1100);
 });
