@@ -32,12 +32,16 @@ scene.add(ambientLight);
 // Load floor texture
 const textureLoader = new THREE.TextureLoader();
 const floorTexture = textureLoader.load('data/textures/grassy_terrain.jpg');
-floorTexture.minFilter = THREE.LinearFilter;
-floorTexture.magFilter = THREE.LinearFilter;
+floorTexture.wrapS = THREE.RepeatWrapping;
+floorTexture.wrapT = THREE.RepeatWrapping;
+floorTexture.repeat.set(2, 2);
 
 // Create floor plane
-const groundGeometry = new THREE.PlaneGeometry(50, 50);
-const groundMaterial = new THREE.MeshStandardMaterial({map: floorTexture});
+const groundGeometry = new THREE.PlaneGeometry(100, 100);
+const groundMaterial = new THREE.MeshStandardMaterial({
+    map: floorTexture,
+    flatShading: true
+});
 const ground = new THREE.Mesh(groundGeometry, groundMaterial);
 ground.rotation.x = -Math.PI / 2;
 ground.position.set(0, -0.55, 0);
