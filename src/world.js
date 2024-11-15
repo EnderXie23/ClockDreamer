@@ -7,7 +7,8 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 // Basic setup
 let camera, scene, renderer, building, fence, player, target, controls;
 let playerBox = new THREE.Box3();
-let playerMMDPath = './data/models/firefly/firefly3.0.pmx';
+let loadedTextures = [];
+let loadedModel, gameData;
 
 // Maximum and minimum pitch angles in radians
 const maxPitch = THREE.MathUtils.degToRad(150);
@@ -33,6 +34,89 @@ let gravity = -0.025;  // Gravity affecting the jump
 let groundLevel = 0; // Y position of the ground
 let jumpInProgress = false;
 
+function loadTexture(url) {
+    return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        loader.load(url, (texture) => {
+            resolve(texture);
+        }, undefined, (error) => {
+            console.error(error);
+            reject(error);
+        });
+    });
+}
+
+function loadModel(url) {
+    return new Promise((resolve, reject) => {
+        let loader;
+        if (url.includes('.pmx'))
+            loader = new MMDLoader();
+        else
+            loader = new GLTFLoader();
+        loader.load(url, (model) => {
+            resolve(model);
+        }, (xhr) => {
+            document.getElementById('progressBarFill').style.width
+                = `${(xhr.loaded / xhr.total) * 100}%`;
+        }, (error) => {
+            console.error(error);
+            reject(error);
+        });
+    });
+}
+
+function loadGameData() {
+    return new Promise((resolve, reject) => {
+        const gameData = JSON.parse(localStorage.getItem('gameData'));
+        if (gameData) {
+            console.log('Game data loaded from localStorage');
+            resolve(gameData);
+        } else {
+            console.warn('No game data found in localStorage');
+            resolve({});
+        }
+    });
+}
+
+function loadAllAssets() {
+    const textureURLs = ['data/textures/rocky_terrain.jpg'];
+    const modelURL = './data/models/firefly/firefly3.0.pmx';
+
+    const texturePromises = textureURLs.map(url => loadTexture(url));
+    const modelPromises = loadModel(modelURL);
+    const gameDataPromise = loadGameData();
+
+    Promise.all([...texturePromises, modelPromises, gameDataPromise])
+        .then((results) => {
+            loadedTextures = results.slice(0, texturePromises.length);
+            loadedModel = results[texturePromises.length];
+            gameData = results[texturePromises.length + 1];
+
+            console.log('All assets loaded successfully');
+            console.log('Loaded textures:', loadedTextures);
+            console.log('Loaded model:', loadedModel);
+            console.log('Loaded game data:', gameData);
+
+            init();
+
+            setTimeout(() => {
+                document.getElementById('progressBar').style.visibility = 'hidden';
+                document.getElementById('loadingText').innerText = 'Welcome to level ' + (gameData.level || 1) + '!';
+                setTimeout(() => {
+                    document.getElementById('loadingScreen').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loadingScreen').style.display = 'none';
+                        document.getElementById('container').style.display = 'block';
+                        document.getElementById('container').style.opacity = '1';
+                    }, 1000);
+                }, 1000);
+            }, 1000);
+        })
+        .catch((error) => {
+            console.log("An error occurred while loading assets:", error);
+        });
+}
+
 function init() {
     // Create scene
     scene = new THREE.Scene();
@@ -48,11 +132,12 @@ function init() {
     camera.applyMatrix4(translationMatrix);
 
     // Create renderer
+    const container = document.getElementById('container');
     renderer = new THREE.WebGLRenderer();
     renderer.setSize(window.innerWidth, window.innerHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    document.body.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
 
     // Controls impl
     controls = new PointerLockControls(camera, renderer.domElement);
@@ -78,16 +163,15 @@ function init() {
     scene.add(directionalLight);
 
     // Load floor texture
-    const textureLoader = new THREE.TextureLoader();
-    const floorTexture = textureLoader.load('data/textures/rocky_terrain.jpg');
-    floorTexture.wrapS = THREE.RepeatWrapping;
-    floorTexture.wrapT = THREE.RepeatWrapping;
-    floorTexture.repeat.set(20, 20);
+    const groundTexture = loadedTextures[0];
+    groundTexture.wrapS = THREE.RepeatWrapping;
+    groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.repeat.set(20, 20);
 
     // Ground
     const groundGeometry = new THREE.PlaneGeometry(500, 500);
     const groundMaterial = new THREE.MeshStandardMaterial({
-        map: floorTexture, flatShading: true
+        map: groundTexture, flatShading: true
     });
     const ground = new THREE.Mesh(groundGeometry, groundMaterial);
     ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
@@ -107,43 +191,13 @@ function init() {
     scene.add(building);
 
     // Player
-    // const loader = new GLTFLoader();
-    // loader.load('./data/models/Topaz/piggy.gltf', function (gltf) {
-    //     player = gltf.scene;
-    //     player.scale.set(3, 3, 3);
-    //     player.position.set(0, groundLevel, 1);
-    //     player.castShadow = true;
-    //     player.receiveShadow = true;
-    //     obstacleBoxes[player.uuid] = new THREE.Box3().setFromObject(player);
-    //     scene.add(player);
-    //     animate();
-    // }, function (xhr) {
-    //     console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-    //     if (xhr.loaded / xhr.total === 1) {
-    //         console.log('Model loaded successfully');
-    //     }
-    // }, function (error) {
-    //     console.error(error);
-    // });
-    const loader = new MMDLoader();
-    loader.load(playerMMDPath, function (mesh) {
-        // Scale the mesh
-        mesh.scale.set(0.1, 0.1, 0.1);
-        player = mesh;
-        player.position.set(0, groundLevel, 1);
-        player.castShadow = true;
-        player.receiveShadow = true;
-        obstacleBoxes[player.uuid] = new THREE.Box3().setFromObject(player);
-        scene.add(player);
-        animate();
-    }, function (xhr) {
-        console.log((xhr.loaded / xhr.total * 100) + '% loaded');
-        if (xhr.loaded / xhr.total === 1) {
-            console.log('Model loaded successfully');
-        }
-    }, function (error) {
-        console.error(error);
-    });
+    loadedModel.scale.set(0.1, 0.1, 0.1);
+    player = loadedModel;
+    player.position.set(0, groundLevel, 1);
+    player.castShadow = true;
+    player.receiveShadow = true;
+    obstacleBoxes[player.uuid] = new THREE.Box3().setFromObject(player);
+    scene.add(player);
 
     // Fence
     const fenceGeometry = new THREE.BoxGeometry(10, 3, 0.1); // Size of the fence
@@ -173,40 +227,7 @@ function init() {
     target.add(verticalLine);
     scene.add(target);
 
-    // Key press event listeners
-    document.addEventListener('keydown', (event) => {
-        keys[event.key] = true;
-    });
-    document.addEventListener('keyup', (event) => {
-        keys[event.key] = false;
-    });
-
-    // Mouse event handling
-    window.addEventListener('mousedown', onMouseDown, false);
-
-    function onMouseDown() {
-        // Get the distance from player to building
-        const distance = player.position.distanceTo(building.position);
-
-        if (distance <= 4) {
-            window.location.href = 'combat.html'; // Navigate to combat.html
-        }
-    }
-
-    // Detect spacebar press
-    document.addEventListener('keydown', function (event) {
-        if (event.code === 'Space' && !jumpInProgress) {
-            jumpInProgress = true;
-            velocity = jumpHeight;  // Initial jump force
-        }
-    });
-
-    // Handle window resizing
-    window.addEventListener('resize', function () {
-        renderer.setSize(window.innerWidth, window.innerHeight);
-        camera.aspect = window.innerWidth / window.innerHeight;
-        camera.updateProjectionMatrix();
-    });
+    animate();
 }
 
 // Function to save the original transparency and opacity of an object
@@ -287,7 +308,7 @@ function handleMovement() {
     movable['s'].push(keys['s']);
     movable['d'].push(keys['d']);
 
-    obstacles.forEach(obstacle=> {
+    obstacles.forEach(obstacle => {
         const obstacleBox = new THREE.Box3().setFromObject(obstacle);
 
         // Get the point on the obstacle closest to the player
@@ -318,31 +339,31 @@ function handleMovement() {
     if (hasMoved) {
         camera.getWorldDirection(cameraDirection);
         player.rotation.y = Math.atan2(cameraDirection.x, cameraDirection.z);
-        if(keys['a'] && keys['w'])
+        if (keys['a'] && keys['w'])
             player.rotation.y += Math.PI / 4;
-        else if(keys['d'] && keys['w'])
+        else if (keys['d'] && keys['w'])
             player.rotation.y -= Math.PI / 4;
-        else if(keys['a'] && keys['s'])
+        else if (keys['a'] && keys['s'])
             player.rotation.y += 3 * Math.PI / 4;
-        else if(keys['d'] && keys['s'])
+        else if (keys['d'] && keys['s'])
             player.rotation.y -= 3 * Math.PI / 4;
-        else if(keys['a'])
+        else if (keys['a'])
             player.rotation.y += Math.PI / 2;
-        else if(keys['d'])
+        else if (keys['d'])
             player.rotation.y -= Math.PI / 2;
-        else if(keys['s'])
+        else if (keys['s'])
             player.rotation.y += Math.PI;
     }
-    if (movingW){
+    if (movingW) {
         controls.moveForward(speed);   // Move forward
     }
-    if (movingS){
+    if (movingS) {
         controls.moveForward(-speed);  // Move backward
     }
-    if (movingA){
+    if (movingA) {
         controls.moveRight(-speed);  // Move left
     }
-    if (movingD){
+    if (movingD) {
         controls.moveRight(speed);  // Move right
     }
 
@@ -377,9 +398,25 @@ function handleJump() {
         if (player.position.y <= groundLevel) {
             player.position.y = groundLevel;
             jumpInProgress = false;
-            console.log("Jump completed!")
         }
     }
+}
+
+// Function to show a message
+function showMessage(message) {
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
+
+    // Set the message text dynamically
+    messageText.innerHTML = message;
+
+    // Add the 'show' class to make it visible
+    messageBox.classList.add('show');
+
+    // Optional: Hide the message after a delay (e.g., 3 seconds)
+    setTimeout(() => {
+        messageBox.classList.remove('show');
+    }, 3000);  // Message disappears after 3 seconds
 }
 
 function animate() {
@@ -395,4 +432,54 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-init();
+loadAllAssets();
+
+// Key press event listeners
+document.addEventListener('keydown', (event) => {
+    keys[event.key] = true;
+    if(event.key === 'r'){
+        // Refresh the page
+        window.location.reload();
+    }
+});
+document.addEventListener('keyup', (event) => {
+    keys[event.key] = false;
+});
+
+// Mouse event handling
+window.addEventListener('mousedown', onMouseDown, false);
+
+function onMouseDown() {
+    // Get the distance from player to building
+    const distance = player.position.distanceTo(building.position);
+
+    if (distance <= 4) {
+        // window.location.href = 'combat.html'; // Navigate to combat.html
+        showMessage('Congratulations! You have reached the building! Level + 1.');
+        const currentLevel = gameData.level || 1;
+        const currentScore = gameData.score || 0;
+        const updateGameData = {
+            level: currentLevel + 1,
+            score: currentScore + 500,
+        };
+
+        localStorage.setItem('gameData', JSON.stringify(updateGameData));
+
+        console.log("Storing game data in localStorage: ", updateGameData);
+    }
+}
+
+// Detect spacebar press
+document.addEventListener('keydown', function (event) {
+    if (event.code === 'Space' && !jumpInProgress) {
+        jumpInProgress = true;
+        velocity = jumpHeight;  // Initial jump force
+    }
+});
+
+// Handle window resizing
+window.addEventListener('resize', function () {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
