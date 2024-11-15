@@ -1,105 +1,17 @@
 import * as THREE from 'three';
 import {gsap} from 'gsap';
 import {Skill, Player, Enemy, Buff} from './Character.js';
+import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
+import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 
-// Initializing Three.js scene
-const container = document.getElementById('container');
-const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xadd8e6);
-
-// Add camera
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth * 0.6 / window.innerHeight, 0.1, 1000);
-camera.position.set(3, 4, 7);
-camera.lookAt(0, 0, 0);
-
-// Set up renderer
-const renderer = new THREE.WebGLRenderer();
-renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
-renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-container.appendChild(renderer.domElement);
-
-// Add point light
-const pointLight = new THREE.PointLight(0xffffff, 1500);
-pointLight.position.set(-5, 15, 0);
-pointLight.castShadow = true;
-scene.add(pointLight);
-
-// Add ambient light
-const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
-scene.add(ambientLight);
-
-// Load floor texture
-const textureLoader = new THREE.TextureLoader();
-const floorTexture = textureLoader.load('data/textures/grassy_terrain.jpg');
-floorTexture.wrapS = THREE.RepeatWrapping;
-floorTexture.wrapT = THREE.RepeatWrapping;
-floorTexture.repeat.set(2, 2);
-
-// Create floor plane
-const groundGeometry = new THREE.PlaneGeometry(100, 100);
-const groundMaterial = new THREE.MeshStandardMaterial({
-    map: floorTexture,
-    flatShading: true
-});
-const ground = new THREE.Mesh(groundGeometry, groundMaterial);
-ground.rotation.x = -Math.PI / 2;
-ground.position.set(0, -0.55, 0);
-ground.receiveShadow = true;
-scene.add(ground);
-
-// Add listener
-const listener = new THREE.AudioListener();
-camera.add(listener);
-
+let scene, camera, renderer;
+let loadedTextures = [], loadedSounds = [], bgm;
+let loadedModel, gameData;
 const audioLoader = new THREE.AudioLoader();
-const sounds = [];
-const soundFiles = [
-    'data/sounds/Buff.mp3',
-    'data/sounds/Debuff.wav',
-    'data/sounds/Attack.wav'
-];
-
-// Handle window resizing
-window.addEventListener('resize', function () {
-    renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
-    camera.aspect = window.innerWidth * 0.6 / window.innerHeight;
-    camera.updateProjectionMatrix();
-});
+const listener = new THREE.AudioListener();
 
 // Action sequence panel
 const actionContainer = document.getElementById('action-sequence');
-
-// Function to create a card element
-function createCardElement(name, value) {
-    const card = document.createElement('div');
-    card.className = 'card';
-    if (name.includes("Enemy")) {
-        card.style.backgroundColor = 'rgb(209,58,58)'
-    }
-    card.innerHTML = `<strong>${name}:</strong> ${value}`;
-    return card;
-}
-
-function addAction(prefix, playerId, index) {
-    let name = prefix + playerId;
-
-    let existingCard = Array.from(actionContainer.children).find(card => card.innerHTML.includes(name) && card.innerHTML.includes(index));
-    if (!existingCard) {
-        const card = createCardElement(name, index);
-        actionContainer.appendChild(card);
-        card.classList.add('fade-in');
-    }
-}
-
-function clearActions() {
-    Array.from(actionContainer.children).forEach((card) => {
-        card.classList.add('fade-out');
-        if (card.parentNode) {
-            actionContainer.removeChild(card);
-        }
-    });
-}
 
 // Action sequence handling
 class PlayerInfo {
@@ -155,7 +67,7 @@ let initPlayers = [
 let allPlayers;
 let initEnemies = [
     new Enemy(1, "Enemy 1", 90, 10000, 100, 100, 0.6, 2, 200, skillSet),
-    new Enemy(2, "Enemy 2", 90, 10000, 200, 70, 0.6, 2, 230, skillSet),
+    new Enemy(2, "Enemy 2", 90, 10000, 100, 70, 1, 2, 330, skillSet),
 ];
 let allEnemies;
 
@@ -165,30 +77,226 @@ let currentVal = 0;
 let round = 0;
 
 // For target selection
-let handleClick = null;
-let handleKeyDown = null;
-
+let handleClick, handleKeyDown;
 let attackMethod = 1; // 1: atk 2: skill 3: hyperSkill
-let currentTarget = null;
-let currentTargetCube = null;
-const indicatorGeometry = new THREE.BoxGeometry(1.1, 1.1, 1.1);
-const indicatorMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true});
-let selectionIndicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
-selectionIndicator.visible = false;
-scene.add(selectionIndicator);
+let currentTarget, currentTargetCube;
+let selectionIndicator;
 let selectorActive = false;
 
 // Player and enemy cubes
-const playerCubes = [];
-const enemyCubes = [];
+let playerCubes = [];
+let enemyCubes = [];
 
 // For the camera animation
 let animationProgress = 0;
-let spinCenter;
-let spinLookAt;
+let spinCenter, spinLookAt, cameraPos;
 let spinDegree = Math.PI / 2;
-let cameraPos = camera.position.clone();
 let translateDir = new THREE.Vector3(0.1, 0, 0.1);
+
+function loadTexture(url) {
+    return new Promise((resolve, reject) => {
+        const loader = new THREE.TextureLoader();
+        loader.load(url, (texture) => {
+            resolve(texture);
+        }, undefined, (error) => {
+            console.error(error);
+            reject(error);
+        });
+    });
+}
+
+function loadModel(url) {
+    return new Promise((resolve, reject) => {
+        let loader;
+        if (url.includes('.pmx'))
+            loader = new MMDLoader();
+        else
+            loader = new GLTFLoader();
+        loader.load(url, (model) => {
+            resolve(model);
+        }, (xhr) => {
+            document.getElementById('progressBarFill').style.width
+                = `${(xhr.loaded / xhr.total) * 100}%`;
+        }, (error) => {
+            console.error(error);
+            reject(error);
+        });
+    });
+}
+
+function loadGameData() {
+    return new Promise((resolve, reject) => {
+        const gameData = JSON.parse(localStorage.getItem('gameData'));
+        if (gameData) {
+            console.log('Game data loaded from localStorage');
+            resolve(gameData);
+        } else {
+            console.warn('No game data found in localStorage');
+            resolve({});
+        }
+    });
+}
+
+function loadAllAssets() {
+    const textureURLs = ['data/textures/grassy_terrain.jpg'];
+    // const modelURL = './data/models/firefly/firefly3.0.pmx';
+    const soundURLs = [
+        'data/sounds/Buff.mp3',
+        'data/sounds/Debuff.wav',
+        'data/sounds/Attack.wav'
+    ];
+
+    soundURLs.forEach(url => {
+        const sound = new THREE.Audio(listener);
+        audioLoader.load(url, function (buffer) {
+            sound.setBuffer(buffer);
+            sound.setLoop(false);
+            sound.setVolume(1);
+            sound.name = url;
+            loadedSounds.push(sound);
+        });
+    });
+    bgm = new THREE.Audio(listener);
+    audioLoader.load('data/sounds/Background.mp3', function (buffer) {
+        bgm.setBuffer(buffer);
+        bgm.setLoop(true);
+        bgm.setVolume(0.3);
+    });
+
+    const texturePromises = textureURLs.map(url => loadTexture(url));
+    // const modelPromises = loadModel(modelURL);
+    const gameDataPromise = loadGameData();
+
+    Promise.all([...texturePromises, gameDataPromise])
+        .then((results) => {
+            loadedTextures = results.slice(0, texturePromises.length);
+            // loadedModel = results[texturePromises.length];
+            gameData = results[texturePromises.length + 1];
+
+            console.log('All assets loaded successfully');
+            console.log('Loaded textures:', loadedTextures);
+            // console.log('Loaded model:', loadedModel);
+            console.log('Loaded game data:', gameData);
+            console.log('Loaded sounds:', loadedSounds);
+
+            init();
+
+            document.getElementById('loadingScreen').style.display = 'none';
+            document.getElementById('combat-ui').style.display = 'block';
+        })
+        .catch((error) => {
+            console.error("An error occurred while loading assets:", error);
+        });
+}
+
+function init() {
+    // Initializing Three.js scene
+    const container = document.getElementById('container');
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0xadd8e6);
+
+    // Add camera
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth * 0.6 / window.innerHeight, 0.1, 1000);
+    camera.position.set(3, 4, 7);
+    camera.lookAt(0, 0, 0);
+
+    // Set up renderer
+    renderer = new THREE.WebGLRenderer();
+    renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
+
+    // Add point light
+    const pointLight = new THREE.PointLight(0xffffff, 1500);
+    pointLight.position.set(-5, 15, 0);
+    pointLight.castShadow = true;
+    scene.add(pointLight);
+
+    // Add ambient light
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+    scene.add(ambientLight);
+
+    // Load ground texture
+    const groundTexture = loadedTextures[0];
+    groundTexture.wrapS = THREE.RepeatWrapping;
+    groundTexture.wrapT = THREE.RepeatWrapping;
+    groundTexture.repeat.set(2, 2);
+
+    // Create ground plane
+    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundMaterial = new THREE.MeshStandardMaterial({
+        map: groundTexture,
+        flatShading: true
+    });
+    const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+    ground.rotation.x = -Math.PI / 2;
+    ground.position.set(0, -0.55, 0);
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Create selection indicator
+    const indicatorGeometry = new THREE.BoxGeometry(1.1, 1.1, 1.1);
+    const indicatorMaterial = new THREE.MeshBasicMaterial({color: 0xffffff, wireframe: true});
+    selectionIndicator = new THREE.Mesh(indicatorGeometry, indicatorMaterial);
+    selectionIndicator.visible = false;
+    scene.add(selectionIndicator);
+
+    // Add listener
+    camera.add(listener);
+
+    animate();
+    initGame();
+}
+
+function initGame() {
+    if (allPlayers)
+        allPlayers.forEach(player => {
+            scene.remove(player.cube);
+            scene.remove(player.hpBar);
+            scene.remove(player.hpBarBg);
+        });
+    if (allEnemies)
+        allEnemies.forEach(enemy => {
+            scene.remove(enemy.cube);
+            scene.remove(enemy.hpBar);
+            scene.remove(enemy.hpBarBg);
+        });
+
+    // Clone the initial players and enemies
+    allPlayers = [];
+    initPlayers.forEach(player => {
+        allPlayers.push(new Player(player.id, player.name, player.lv, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
+    });
+    allEnemies = [];
+    initEnemies.forEach(enemy => {
+        allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
+    });
+
+    // Clone the initial buffs
+    allBuffs = [];
+    initBuffs.forEach(buff => {
+        if (buff.name.includes("_players")) {
+            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allPlayers));
+        }
+        if (buff.name.includes("_enemies")) {
+            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allEnemies));
+        }
+    });
+
+    // Init character cubes
+    createCubes();
+
+    // Reset the action queue
+    actionQ.elements = [];
+    selectorActive = false;
+    selectionIndicator.visible = false;
+
+    // Reset the round
+    round = 0;
+    currentVal = 0;
+    startRound();
+}
 
 // Create cubes for players and enemies
 function createCubes() {
@@ -275,8 +383,6 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-animate();
-
 // Easing function for spin speed
 function easeInOut(t) {
     return t < 0.5 ? 0.8 * (2 * t * t) + 0.1 * t : 0.8 * (-1 + (4 - 2 * t) * t) + 0.1 * t;
@@ -293,14 +399,14 @@ function animateCameraSpin() {
     animationProgress += 0.02 * (1 - easedProgress); // Slow start and end, faster in the middle
 
     if (animationProgress > Math.abs(spinDegree) - 0.05) {
-        console.log("Animation complete!");
+        // console.log("Animation complete!");
         animationProgress = 0;
         return;
     }
 
     // Calculate the new camera position along a circular path
-    const x = radius * Math.cos(initProgress + (reversed? -1 : 1) * animationProgress);
-    const z = radius * Math.sin(initProgress + (reversed? -1 : 1) * animationProgress);
+    const x = radius * Math.cos(initProgress + (reversed ? -1 : 1) * animationProgress);
+    const z = radius * Math.sin(initProgress + (reversed ? -1 : 1) * animationProgress);
     camera.position.set(x, spinCenter.y, z);
 
     // Keep looking at the center of the scene
@@ -339,6 +445,41 @@ function animateCameraTranslation() {
     }
 
     translateCamera();
+}
+
+// Function to create a card element
+function createCardElement(name, value) {
+    const card = document.createElement('div');
+    card.className = 'card';
+    if (name.includes("Enemy")) {
+        card.style.backgroundColor = 'rgb(209,58,58)'
+    }
+    card.innerHTML = `<strong>${name}:</strong> ${value}`;
+    card.setAttribute('val', value);
+    return card;
+}
+
+function addAction(prefix, playerId, index) {
+    let name = prefix + playerId;
+
+    let existingCard = Array.from(actionContainer.children).find(card => card.innerHTML.includes(name) && card.innerHTML.includes(index));
+    if (!existingCard) {
+        const card = createCardElement(name, index);
+        actionContainer.appendChild(card);
+        card.classList.add('fade-in');
+        // Sort all cards by index
+        Array.from(actionContainer.children).sort((a, b) => a.getAttribute('val') - b.getAttribute('val'))
+            .forEach(card => actionContainer.appendChild(card));
+    }
+}
+
+function clearActions() {
+    Array.from(actionContainer.children).forEach((card) => {
+        card.classList.add('fade-out');
+        if (card.parentNode) {
+            actionContainer.removeChild(card);
+        }
+    });
 }
 
 // Screen shaker
@@ -395,7 +536,7 @@ function animateAttack(attacker, target) {
         } else {
             // Start shaking the screen and play the attack sound
             shakeScreen(0.3, 300);
-            sounds.forEach(sound => {
+            loadedSounds.forEach(sound => {
                 if (sound.name.includes("Attack.wav"))
                     sound.play();
             });
@@ -476,12 +617,12 @@ function animateBoostEffect(target, boost = true) {
     // Start the boost animation
     animateBoost();
     if (boost) {
-        sounds.forEach(sound => {
+        loadedSounds.forEach(sound => {
             if (sound.name.includes("Buff.mp3"))
                 sound.play();
         });
     } else {
-        sounds.forEach(sound => {
+        loadedSounds.forEach(sound => {
             if (sound.name.includes("Debuff.wav"))
                 sound.play();
         });
@@ -489,13 +630,47 @@ function animateBoostEffect(target, boost = true) {
 }
 
 // Animate a hyper attack
+function hyperAttack(attacker) {
+    stopTargetSelector();
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => button.disabled = true);
+
+    spinCenter = new THREE.Vector3(0, 4, 0);
+    spinLookAt = new THREE.Vector3(0, 0, 0);
+    cameraPos = camera.position.clone();
+    const startPos = camera.position.clone();
+    spinDegree = Math.PI / 8;
+    animateCameraSpin();
+    setTimeout(() => {
+        translateDir = new THREE.Vector3(0, 0, 0.1);
+        animateCameraTranslation();
+        setTimeout(() => {
+            animateHyperAttack(attacker);
+            setTimeout(() => {
+                translateDir = new THREE.Vector3(0, 0, -0.1);
+                animateCameraTranslation();
+                setTimeout(() => {
+                    cameraPos = camera.position.clone();
+                    spinDegree = -Math.PI / 8;
+                    animateCameraSpin();
+                    setTimeout(() => {
+                        camera.position.set(startPos.x, startPos.y, startPos.z);
+                        targetSelector('enemy');
+                        afterAction(false);
+                    }, 1200);
+                }, 1900);
+            }, 1600);
+        }, 700);
+    }, 1100);
+}
+
 function animateHyperAttack(attacker) {
     const playerCube = attacker.cube;
 
     // Create an animation for the player attack using GSAP
     const originalPosition = playerCube.position.clone();
     const originalScale = playerCube.scale.clone();
-    const enemyPosition = allEnemies[1].cube.position.clone();
+    const enemyPosition = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
 
     // Animation sequence: Jump up, grow, and smash into enemies
     gsap.timeline()
@@ -507,16 +682,6 @@ function animateHyperAttack(attacker) {
             z: enemyPosition.z,
             duration: 0.5,
             ease: "bounce.out",
-            onComplete: () => { // Smash down
-                // Check for collisions with enemies
-                allEnemies.forEach(enemy => {
-                    const distance = playerCube.position.distanceTo(enemy.cube.position);
-                    if (distance < 2) {
-                        console.log(`Enemy ${enemy.id} got hit!`);
-                        // Implement damage logic here if needed
-                    }
-                });
-            }
         })
         .to(playerCube.position, {
             x: enemyPosition.x,
@@ -524,6 +689,16 @@ function animateHyperAttack(attacker) {
             z: enemyPosition.z,
             duration: 0.5,
             ease: "bounce.out",
+            onComplete: () => { // Smash down
+                // Check for collisions with enemies
+                allEnemies.forEach(enemy => {
+                    enemy.onLoseHp(3000);
+                });
+                loadedSounds.forEach(sound => {
+                    if (sound.name.includes("Attack.wav"))
+                        sound.play();
+                });
+            }
         })
         .to(playerCube.scale, {
             x: originalScale.x,
@@ -583,6 +758,8 @@ function filterActions() {
                 }
             });
             scene.remove(player.cube);
+            scene.remove(player.hpBar);
+            scene.remove(player.hpBarBg);
         }
     });
     allPlayers = allPlayers.filter(player => player.isAlive);
@@ -609,53 +786,6 @@ function filterActions() {
 
     actionQ.elements.sort((a, b) => a.index - b.index);
     progressVal(0);
-}
-
-// Initialize the game
-function initGame() {
-    // Load sounds
-    soundFiles.forEach((file) => {
-        const sound = new THREE.Audio(listener);
-        audioLoader.load(file, function (buffer) {
-            sound.setBuffer(buffer);
-            sound.setLoop(false);
-            sound.setVolume(1);
-            sound.name = file;
-            sounds.push(sound);
-        });
-    });
-
-    // Clone the initial players and enemies
-    allPlayers = [];
-    initPlayers.forEach(player => {
-        allPlayers.push(new Player(player.id, player.name, player.lv, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
-    });
-    allEnemies = [];
-    initEnemies.forEach(enemy => {
-        allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
-    });
-
-    // Clone the initial buffs
-    allBuffs = [];
-    initBuffs.forEach(buff => {
-        if (buff.name.includes("_players")) {
-            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allPlayers));
-        }
-        if (buff.name.includes("_enemies")) {
-            allBuffs.push(new Buff(buff.name.split("_")[0], buff.effectType, buff.value, buff.rounds, allEnemies));
-        }
-    });
-
-    // Init character cubes
-    createCubes();
-
-    // Reset the action queue
-    actionQ.elements = [];
-
-    // Reset the round
-    round = 0;
-    currentVal = 0;
-    startRound();
 }
 
 // Apply all the buffs
@@ -731,8 +861,6 @@ function updateStatusPanel() {
         enemy.hpBar.position.x = enemy.hpBarBg.position.x - (1 - hpPercentage) / 2; // Adjust position to keep bar aligned
     });
 }
-
-initGame();
 
 // Target Selector
 function targetSelector(targetType) {
@@ -855,17 +983,26 @@ function stopTargetSelector() {
 }
 
 // Logic after an action is performed
-function afterAction() {
-    activePlayer = null;
+function afterAction(proceed = true) {
+    // Enable the buttons
+    const buttons = document.querySelectorAll('button');
+    buttons.forEach(button => button.disabled = false);
+
     updateStatusPanel();
 
     filterActions();
     if (allPlayers.length === 0 || allEnemies.length === 0) {
-        alert("Game over!");
-        initGame();
+        stopTargetSelector();
+        setTimeout(() => {
+            alert("Game over!")
+        }, 200);
+        setTimeout(initGame, 1000);
     }
 
+    if (!proceed) return;
+
     // Update action value for all players
+    activePlayer = null;
     actionQ.dequeue();
     if (!actionQ.isEmpty()) {
         const moveVal = actionQ.elements[0].index;
@@ -888,8 +1025,10 @@ function nextAction() {
     const info = topPlayer.PlayerInfo;
 
     // Check if player can perform another round
-    if (info.dist / info.speed <= info.actionVal)
+    if (info.dist / info.speed <= info.actionVal) {
         actionQ.enqueue(info.dist / info.speed, topPlayer.PlayerInfo);
+        addAction(info.charType === "player" ? "Player " : "Enemy ", info.playerId, Math.round(info.dist / info.speed));
+    }
 
     if (info.charType === "player") {
         console.log("Player " + info.playerId + " is acting!");
@@ -899,12 +1038,13 @@ function nextAction() {
         attackMethod = 1;
         stopTargetSelector();
         targetSelector('enemy');
-        // Enable the buttons
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => button.disabled = false);
     } else {
+        const buttons = document.querySelectorAll('button');
+        buttons.forEach(button => button.disabled = true);
         console.log("Enemy " + info.playerId + " is acting!");
         activePlayer = allEnemies.find(enemy => enemy.id === info.playerId);
+
+        // Randomly select a player to attack
         const randomIndex = Math.floor(Math.random() * allPlayers.length);
         activePlayer.useSkill(0, allPlayers[randomIndex]);
         animateAttack(activePlayer, allPlayers[randomIndex]);
@@ -946,6 +1086,15 @@ function actionForward(target, val) {
     // Filter actions in case of minus forward
     filterActions();
 }
+
+loadAllAssets();
+
+// Handle window resizing
+window.addEventListener('resize', function () {
+    renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
+    camera.aspect = window.innerWidth * 0.6 / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
 
 // Button logic
 document.getElementById('attackButton').addEventListener('click', function onClick() {
@@ -997,13 +1146,6 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
     updateStatusPanel();
 });
 
-const bgm = new THREE.Audio(listener);
-audioLoader.load('data/sounds/Background.mp3', function (buffer) {
-    bgm.setBuffer(buffer);
-    bgm.setLoop(true);
-    bgm.setVolume(0.3);
-});
-
 document.getElementById('musicButton').addEventListener('click', function onClick() {
     // Check the inner html of the button
     if (document.getElementById('musicButton').innerHTML === "Play Music") {
@@ -1016,29 +1158,6 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    spinCenter = new THREE.Vector3(0, 4, 0);
-    spinLookAt = new THREE.Vector3(0, 0, 0);
-    cameraPos = camera.position.clone();
-    const startPos = camera.position.clone();
-    spinDegree = Math.PI / 8;
-    animateCameraSpin();
-    setTimeout(() => {
-        translateDir = new THREE.Vector3(0, 0, 0.1);
-        animateCameraTranslation();
-        setTimeout(() => {
-            animateHyperAttack(allPlayers[0]);
-            setTimeout(()=>{
-                translateDir = new THREE.Vector3(0, 0, -0.1);
-                animateCameraTranslation();
-                setTimeout(()=>{
-                    cameraPos = camera.position.clone();
-                    spinDegree = -Math.PI / 8;
-                    animateCameraSpin();
-                    setTimeout(()=>{
-                        camera.position.set(startPos.x, startPos.y, startPos.z);
-                    },1200);
-                }, 1900);
-            }, 1600);
-        }, 700);
-    }, 1100);
+    hyperAttack(activePlayer);
+    // initGame();
 });
