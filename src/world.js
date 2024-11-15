@@ -100,8 +100,16 @@ function loadAllAssets() {
             init();
 
             setTimeout(() => {
-                document.getElementById('loadingScreen').style.display = 'none';
-                document.getElementById('container').style.display = 'block';
+                document.getElementById('progressBar').style.visibility = 'hidden';
+                document.getElementById('loadingText').innerText = 'Welcome to level ' + (gameData.level || 1) + '!';
+                setTimeout(() => {
+                    document.getElementById('loadingScreen').style.opacity = '0';
+                    setTimeout(() => {
+                        document.getElementById('loadingScreen').style.display = 'none';
+                        document.getElementById('container').style.display = 'block';
+                        document.getElementById('container').style.opacity = '1';
+                    }, 1000);
+                }, 1000);
             }, 1000);
         })
         .catch((error) => {
@@ -394,6 +402,23 @@ function handleJump() {
     }
 }
 
+// Function to show a message
+function showMessage(message) {
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
+
+    // Set the message text dynamically
+    messageText.innerHTML = message;
+
+    // Add the 'show' class to make it visible
+    messageBox.classList.add('show');
+
+    // Optional: Hide the message after a delay (e.g., 3 seconds)
+    setTimeout(() => {
+        messageBox.classList.remove('show');
+    }, 3000);  // Message disappears after 3 seconds
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -412,6 +437,10 @@ loadAllAssets();
 // Key press event listeners
 document.addEventListener('keydown', (event) => {
     keys[event.key] = true;
+    if(event.key === 'r'){
+        // Refresh the page
+        window.location.reload();
+    }
 });
 document.addEventListener('keyup', (event) => {
     keys[event.key] = false;
@@ -425,18 +454,18 @@ function onMouseDown() {
     const distance = player.position.distanceTo(building.position);
 
     if (distance <= 4) {
-        window.location.href = 'combat.html'; // Navigate to combat.html
+        // window.location.href = 'combat.html'; // Navigate to combat.html
+        showMessage('Congratulations! You have reached the building! Level + 1.');
+        const currentLevel = gameData.level || 1;
+        const currentScore = gameData.score || 0;
+        const updateGameData = {
+            level: currentLevel + 1,
+            score: currentScore + 500,
+        };
 
-        // const currentLevel = gameData.level || 1;
-        // const currentScore = gameData.score || 0;
-        // const updateGameData = {
-        //     level: currentLevel + 1,
-        //     score: currentScore + 500,
-        // };
-        //
-        // localStorage.setItem('gameData', JSON.stringify(updateGameData));
-        //
-        // console.log("Storing game data in localStorage: ", updateGameData);
+        localStorage.setItem('gameData', JSON.stringify(updateGameData));
+
+        console.log("Storing game data in localStorage: ", updateGameData);
     }
 }
 

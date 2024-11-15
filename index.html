@@ -13,9 +13,11 @@
             height: 100%;
             background-color: rgba(0, 0, 0, 0.8);
             display: flex;
-            justify-content: center;
             align-items: center;
+            justify-content: center;
             z-index: 1000; /* Ensure it's on top of everything */
+            opacity: 1; /* Start with fully visible */
+            transition: opacity 1s ease-out; /* Fade-out effect */
         }
         #loadingText {
             color: white;
@@ -38,11 +40,43 @@
             transition: width 0.5s;
         }
         #container {
+            opacity: 0;
+            transition: opacity 1s ease-in;
             display: none; /* Hide canvas initially */
+        }
+        /* Style for the message box */
+        #messageBox {
+            position: fixed;
+            top: 10%;  /* Center the message vertically */
+            left: 50%; /* Center the message horizontally */
+            transform: translate(-50%, -50%); /* Center exactly */
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 1.5em;
+            z-index: 1001;  /* Ensure it appears above other elements */
+            display: none;  /* Initially hidden */
+        }
+
+        /* Optional: Make it appear or disappear smoothly */
+        #messageBox.show {
+            display: block;
+            animation: fadeIn 1s ease-in-out; /* Add fade-in animation */
+        }
+
+        /* Animation for fading in the message box */
+        @keyframes fadeIn {
+            0% { opacity: 0; }
+            100% { opacity: 1; }
         }
     </style>
 </head>
 <body>
+<!-- Message Container -->
+<div id="messageBox" class="hidden">
+    <p id="messageText">Loading assets, please wait...</p>
+</div>
 <div id="loadingScreen">
     <div id="loadingText">Loading...</div>
     <div id="progressBar">
