@@ -1,260 +1,482 @@
 import * as THREE from 'three';
-import {Reflector} from "three/examples/jsm/objects/Reflector.js";
+import { OrbitControls } from 'https://unpkg.com/three@0.112/examples/jsm/controls/OrbitControls.js';
+import { ObjectLoader } from 'three';
+import LegacyJSONLoader from 'https://assets.codepen.io/1290466/LegacyJSONLoader.js'
 
-const container = document.getElementById('container');
+let scene, renderer, camera, controls;
+let settings, floorplan, container, light;
+const blockSize = 20; // 块大小
+const assetPath = './src/objects/cell'; // 使用本地相对路径
 
-// Renderer
-const renderer = new THREE.WebGLRenderer({antiAlias: true});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-container.appendChild(renderer.domElement);
+// 初始化场景、相机和控制器
+function init() {
+    container = document.getElementById('world');
+    settings = data.settings;
+    floorplan = data.floorplan;
 
-// Create scene
-let scene = new THREE.Scene();
+    // 设置渲染器
+    renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.setClearColor(`rgb(${settings.background})`);
+    renderer.shadowMap.enabled = true;
+    renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    container.appendChild(renderer.domElement);
 
-// Create camera
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(0, 0, 10);
+    // 创建场景
+    scene = new THREE.Scene();
 
-// Rotate camera
-const angleY = THREE.MathUtils.degToRad(-30);
-const rotationMatrixY = new THREE.Matrix4().makeRotationY(-angleY); // Apply negative angle for clockwise rotation
-camera.applyMatrix4(rotationMatrixY); // Apply the rotation to the camera
-const angleX = THREE.MathUtils.degToRad(40);
-const rotationMatrixX = new THREE.Matrix4().makeRotationX(-angleX);
-camera.applyMatrix4(rotationMatrixX);
-camera.lookAt(0, 0, 0); // Point the camera at the origin
-
-// Translate camera
-const translationMatrix = new THREE.Matrix4().makeTranslation(2, 3.5, 0);
-camera.applyMatrix4(translationMatrix);
-
-// Load texture for background
-const loader = new THREE.TextureLoader();
-loader.load('./data/img/starry.webp', function (texture) {
-    scene.background = texture;
-});
-
-// Create light
-const light = new THREE.PointLight(0xffffff, 1, 100);
-light.position.set(10, 10, 10);
-scene.add(light);
-
-// Create blocks
-const blockMaterialYellow = new THREE.MeshBasicMaterial({color: 0xffcc00});
-const blockMaterialRed = new THREE.MeshBasicMaterial({color: 0xff3300});
-const blockMaterialBlue = new THREE.MeshBasicMaterial({color: 0x0000ff});
-
-// Yellow block
-const yellowBlockGeometry = new THREE.BoxGeometry(1, 1, 4);
-yellowBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, 0.5));
-const yellowBlock = new THREE.Mesh(yellowBlockGeometry, blockMaterialYellow);
-yellowBlock.position.set(-5, 0, -3);
-scene.add(yellowBlock);
-
-// Red block
-const redBlockGeometry = new THREE.BoxGeometry(4, 1, 1);
-redBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(1.5, 0, 0));
-const redBlock = new THREE.Mesh(redBlockGeometry, blockMaterialRed);
-redBlock.position.set(-1, 0, -2);
-scene.add(redBlock);
-
-// Blue block
-const blueBlockGeometry = new THREE.BoxGeometry(4, 1, 1);
-blueBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(1.5, 0, 0));
-const blueBlock = new THREE.Mesh(blueBlockGeometry, blockMaterialBlue);
-blueBlock.position.set(-1, 0, -10);
-scene.add(blueBlock);
-
-// Create mirror
-const mirrorWidth = 5;
-const mirrorHeight = 8;
-let geometry = new THREE.PlaneGeometry( mirrorWidth, mirrorHeight );
-let mirror = new Reflector(geometry, {
-    clipBias: 0.003,
-    textureWidth: window.innerWidth * window.devicePixelRatio,
-    textureHeight: window.innerHeight * window.devicePixelRatio,
-    color: 0xc1cbcb
-});
-mirror.position.set(0, 0, -6);
-scene.add(mirror);
-
-// Layer configuration
-const MAIN_LAYER = 0;
-const NO_REF_LAYER = 1; // No reflection layer
-
-yellowBlock.layers.set(MAIN_LAYER);
-redBlock.layers.set(MAIN_LAYER);
-mirror.layers.set(MAIN_LAYER);
-camera.layers.enable(NO_REF_LAYER);
-
-// Global variables for animation
-let animationInProgress = false;
-let totalRotation = 0;
-let targetRotation = 0;
-let rotationDirection = 1;
-let dragging = false;
-let selectedObject = null;
-let needs_log = true;
-
-mirror.material.transparent = true;
-mirror.material.opacity = 0.9;
-
-function renderRotation() {
-    let rotationSpeed = Math.PI / 60;
-    if (targetRotation < 0) {
-        rotationSpeed *= -1;
-    }
-
-    // rotate till target
-    if (animationInProgress) {
-        if (totalRotation < Math.abs(targetRotation)) {
-            redBlock.rotation.y += rotationSpeed;
-            totalRotation += Math.abs(rotationSpeed);
-        } else {
-            animationInProgress = false;
-        }
-    }
-}
-
-
-// Main scene render loop
-function animate() {
-    renderRotation();
-
-    renderer.render(scene, camera);
-
-    requestAnimationFrame(animate);
-
-    if (needs_log) {
-        // Put the log here
-
-    }
-}
-
-function createTrail() {
-    // Create a simple 3D trail using box geometries
-    const trailMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
-    const trailLength = 5;
-    const trailWidth = 1;
-
-    // Create multiple segments to represent the trail
-    for (let i = 0; i < 5; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
+    // 设置相机
+    if (settings.perspectiveCamera) {
+        camera = new THREE.PerspectiveCamera(25, window.innerWidth / window.innerHeight, 1, 10000);
+        camera.position.set(800, -800, 800);
+        camera.up.set(0, 0, 1);
+    } else {
+        camera = new THREE.OrthographicCamera(
+            window.innerWidth / -2,
+            window.innerWidth / 2,
+            window.innerHeight / 2,
+            window.innerHeight / -2,
+            -1000,
+            5000
         );
-        trailSegment.position.set(-1, 0, 3 - i);  // Spread segments along the Z axis
-        trailSegment.layers.set(NO_REF_LAYER);
-        scene.add(trailSegment);
+        camera.position.set(20, -20, 20);
+        camera.up.set(0, 0, 1);
     }
 
-    for (let i = 0; i < 2; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
-        );
-        trailSegment.position.set(-5, 0, 3 - i);  // Spread segments along the Z axis
-        scene.add(trailSegment);
-        trailSegment.layers.set(NO_REF_LAYER);
-    }
+    // 添加灯光
+    light = new THREE.PointLight(`rgb(${settings.globalLight})`, 12, 1000);
+    light.position.set(600, -200, 500);
+    light.castShadow = true;
+    scene.add(light, new THREE.AmbientLight(`rgb(${settings.ambientLight})`));
+
+    // 初始化 OrbitControls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.minPolarAngle = Math.PI / 2 - 0.5;
+    controls.maxPolarAngle = Math.PI / 2 - 0.5;
+    controls.autoRotate = settings.autoRotate;
+    controls.autoRotateSpeed = settings.rotationSpeed;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.15;
+
+    // 渲染 floorplan
+    renderFloorplan();
+
+    // 监听窗口大小变化
+    window.addEventListener('resize', onWindowResize);
+
+    // 开始动画
+    animate();
 }
 
-createTrail();
-animate();
+// 监听窗口大小变化
+function onWindowResize() {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+}
 
-// Keyboard event listener
-window.addEventListener('mousedown', onMouseDown, false);
-window.addEventListener('mousemove', onMouseMove, false);
-window.addEventListener('mouseup', onMouseUp, false);
+// 渲染 Floorplan
+function renderFloorplan() {
+    const monumentSquareSize = blockSize * floorplan[0][0].length;
+    let zPos = -monumentSquareSize - settings.offsetY;
 
-// Create Raycaster and mouse vector
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
+    for (let z = 0; z < floorplan.length; z++) {
+        let reversedZ = floorplan.length - (z + 1);
+        zPos += blockSize;
 
-// Handle mouse down event (selecting objects)
-function onMouseDown(event) {
-    event.preventDefault();
+        for (let x = 0; x < floorplan[reversedZ].length; x++) {
+            let reversedX = floorplan[reversedZ].length - (x + 1);
+            let xPos = monumentSquareSize / 2 - x * blockSize;
 
-    // Calculate mouse position in normalized device coordinates (-1 to +1)
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    console.log(mouse.x, mouse.y);
+            for (let y = 0; y < floorplan[reversedZ][reversedX].length; y++) {
+                let reversedY = floorplan[reversedZ][reversedX].length - (y + 1);
+                let cell = floorplan[reversedZ][reversedX][reversedY];
+                let yPos = monumentSquareSize / 2 - y * blockSize;
 
-    // Update the rayCaster with camera and mouse position
-    raycaster.setFromCamera(mouse, camera);
-
-    // Check if we intersect with the yellow or red block
-    const intersects = raycaster.intersectObjects([yellowBlock, redBlock, mirror]);
-
-    if (intersects.length > 0) {
-        selectedObject = intersects[0].object;
-
-        if (selectedObject === yellowBlock || selectedObject === mirror) {
-            // Start dragging the selected object
-            dragging = true;
-            // console.log('selected object: ', selectedObject.name);
-        } else if (selectedObject === redBlock) {
-            // Check if the red block can rotate
-            let rotLim = rotationDirection === 1 ? redBlock.rotation.y < Math.PI - 0.01 : redBlock.rotation.y > 0.01;
-            // Perform rotation on the red block
-            if (!rotLim)
-                rotationDirection *= -1;
-            if (!animationInProgress) {
-                totalRotation = 0;
-                targetRotation = rotationDirection * Math.PI / 2;
-                animationInProgress = true;
+                switch (cell) {
+                    case 1: // Cube
+                        createCube(xPos, yPos, zPos, `rgb(${settings.cube})`);
+                        break;
+                    case 2: // Shape (Tile)
+                        createShape(xPos, yPos, zPos, `rgb(${settings.tale})`, `${assetPath}/tail.json`);
+                        break;
+                    case 3: // Shape (Stairs)
+                        createShape(xPos, yPos, zPos, `rgb(${settings.stairs})`, `${assetPath}/stairs.json`);
+                        break;
+                    case 4: // Light
+                        createPointLight(xPos, yPos, zPos, `rgb(${settings.pointLight})`);
+                        break;
+                    case 5: // Shape (Pillar)
+                        createShape(xPos, yPos, zPos, `rgb(${settings.pillar})`, `${assetPath}/pillar.json`);
+                        break;
+                }
             }
         }
     }
 }
 
-// Handle mouse move event (dragging the yellow block)
-function onMouseMove(event) {
-    if (!dragging) return;
-
-    // Calculate mouse position in normalized device coordinates (-1 to +1)
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-
-    // Update rayCaster to match the new mouse position
-    raycaster.setFromCamera(mouse, camera);
-    let intersectionPoint;
-
-    if (selectedObject === yellowBlock) {
-        // Create a plane for dragging along the Z-axis
-        const ZPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
-
-        // Use rayCaster to find intersection point on the plane
-        intersectionPoint = new THREE.Vector3();
-        raycaster.ray.intersectPlane(ZPlane, intersectionPoint);
-
-        // Align the yellow block to the Z-axis of the intersection point
-        yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 4, -1), -5);
-    } else if (selectedObject === mirror) {
-        // Create a plane for dragging along the X-axis
-        const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-
-        // Use rayCaster to find intersection point on the plane
-        intersectionPoint = new THREE.Vector3();
-        raycaster.ray.intersectPlane(XPlane, intersectionPoint);
-
-        // Move the mirror along the X-axis
-        mirror.position.x = Math.max(Math.min(intersectionPoint.x - 3, 3), -4);
-    }
+// 创建 Cube
+function createCube(x, y, z, color) {
+    const geometry = new THREE.BoxGeometry(blockSize, blockSize, blockSize);
+    const material = new THREE.MeshLambertMaterial({ color });
+    const cube = new THREE.Mesh(geometry, material);
+    cube.position.set(x, y, z);
+    cube.castShadow = true;
+    scene.add(cube);
 }
 
-// Handle mouse up event (stop dragging)
-function onMouseUp() {
-    dragging = false;
+function createShape(x, y, z, color, source, scale = 1, rotate = 0) {
+    const loader = new THREE.ObjectLoader();
+    loader.load(source, (object) => {
+        object.traverse((child) => {
+            if (child.isMesh) {
+                child.material = new THREE.MeshLambertMaterial({ color });
+            }
+        });
 
-    if (selectedObject === yellowBlock) {
-        // Snap the yellow block to the nearest grid position
-        yellowBlock.position.z = Math.round(yellowBlock.position.z);
-    } else if (selectedObject === mirror){
-        // Snap the mirror to the nearest grid position
-        mirror.position.x = Math.round(mirror.position.x);
-    }
-
-    selectedObject = null;
+        object.scale.set(scale, scale, scale);
+        object.position.set(x, y, z);
+        object.rotation.y = rotate;
+        scene.add(object);
+    });
 }
+
+// 创建 PointLight
+function createPointLight(x, y, z, color) {
+    const pointLight = new THREE.PointLight(color, 1.5, 500);
+    pointLight.position.set(x, y, z);
+    pointLight.castShadow = true;
+
+    // 创建光源的球体外壳
+    const sphereGeometry = new THREE.SphereGeometry(blockSize / 4, 16, 16);
+    const sphereMaterial = new THREE.MeshBasicMaterial({ color });
+    const lightBulb = new THREE.Mesh(sphereGeometry, sphereMaterial);
+    pointLight.add(lightBulb);
+
+    scene.add(pointLight);
+}
+
+// 动画循环
+function animate() {
+    controls.update(); // 更新控制器
+    renderer.render(scene, camera); // 渲染场景
+    requestAnimationFrame(animate); // 循环调用
+}
+
+// 数据设置
+const data = {
+    settings: {
+        perspectiveCamera: false,
+        autoRotate: true,
+        rotationSpeed: 0.25,
+        offsetY: -30,
+        background: "0, 0, 16",
+        globalLight: "255, 255, 255",
+        ambientLight: "0, 0, 32",
+        cube: "107, 126, 127",
+        tale: "81, 91, 95",
+        stairs: "107, 126, 127",
+        pointLight: "255, 255, 255",
+        pillar: "107, 126, 127"
+    },
+    floorplan: [
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 4, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 3, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 4, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 2, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 5, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [2, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 5, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 0, 0, 0, 5, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 1, 1, 0, 0, 0, 0, 3, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 1, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0],
+            [5, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 4]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [1, 1, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 2]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        ],
+        [
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 1, 1, 1, 1, 1, 1, 0, 0],
+            [0, 0, 1, 1, 1, 1, 1, 1, 1, 1, 0, 0],
+            [1, 1, 1, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 1, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 0],
+            [1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0],
+            [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 5]
+        ]
+    ]
+};
+
+// 初始化
+init();
