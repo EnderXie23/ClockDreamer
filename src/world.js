@@ -5,10 +5,11 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 
 // All global variables
 // Basic setup
-let camera, scene, renderer, building, fence, player, target, controls;
+let camera, scene, renderer, controls;
+let building, fence, player, target, fenceLink;
 let playerBox = new THREE.Box3();
-let loadedTextures = [];
-let loadedModel, gameData;
+let loadedTextures = [], loadedModels = [];
+let gameData;
 
 // Maximum and minimum pitch angles in radians
 const maxPitch = THREE.MathUtils.degToRad(150);
@@ -16,8 +17,8 @@ const minPitch = THREE.MathUtils.degToRad(80);
 
 // Movement controls
 const keys = {};
-let obstacles; // List of objects to check for transparency
-let obstacleBoxes = []; // List of bounding boxes for collision detection
+let obstacles = []; // List of objects to check for transparency
+let playerFacingOffset = 0;
 
 // Collision detection and response
 let speed = 0.1;
@@ -48,13 +49,20 @@ function loadTexture(url) {
 
 function loadModel(url) {
     return new Promise((resolve, reject) => {
-        let loader;
+        let loader, res;
         if (url.includes('.pmx'))
             loader = new MMDLoader();
         else
             loader = new GLTFLoader();
         loader.load(url, (model) => {
-            resolve(model);
+            if (url.includes('.pmx')) {
+                model.scale.set(0.1, 0.1, 0.1);
+                res = model;
+            }else {
+                groundLevel = 0.25;
+                res = model.scene.children[0];
+            }
+            resolve(res);
         }, (xhr) => {
             document.getElementById('progressBarFill').style.width
                 = `${(xhr.loaded / xhr.total) * 100}%`;
@@ -66,7 +74,7 @@ function loadModel(url) {
 }
 
 function loadGameData() {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const gameData = JSON.parse(localStorage.getItem('gameData'));
         if (gameData) {
             console.log('Game data loaded from localStorage');
@@ -79,22 +87,23 @@ function loadGameData() {
 }
 
 function loadAllAssets() {
-    const textureURLs = ['data/textures/rocky_terrain.jpg'];
-    const modelURL = './data/models/firefly/firefly3.0.pmx';
+    const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
+    const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
-    const modelPromises = loadModel(modelURL);
+    const modelPromises = modelURLs.map(url => loadModel(url));
     const gameDataPromise = loadGameData();
 
-    Promise.all([...texturePromises, modelPromises, gameDataPromise])
+    Promise.all([...texturePromises, ...modelPromises, gameDataPromise])
         .then((results) => {
+            console.log(results);
             loadedTextures = results.slice(0, texturePromises.length);
-            loadedModel = results[texturePromises.length];
-            gameData = results[texturePromises.length + 1];
+            loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
+            gameData = results[texturePromises.length + modelPromises.length];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
-            console.log('Loaded model:', loadedModel);
+            console.log('Loaded models:', loadedModels);
             console.log('Loaded game data:', gameData);
 
             init();
@@ -179,46 +188,51 @@ function init() {
     scene.add(ground);
 
     // Building
-    const buildingGeometry = new THREE.BoxGeometry(1, 5, 1);
-    const buildingMaterial = new THREE.MeshStandardMaterial({
-        color: 0x8B4513, transparent: true, opacity: 0.7
-    });
-    building = new THREE.Mesh(buildingGeometry, buildingMaterial);
-    building.name = 'building'; // Name the building
-    building.position.set(0, 2, -3); // Position the building
+    building = loadedModels[2];
+    building.scale.set(3, 3, 3);
+    building.material.transparent = true;
+    building.material.opacity = 0.7;
+    building.position.set(2, 1, -4); // Position the building
     building.castShadow = true;
     building.receiveShadow = true;
+    obstacles.push(building);
     scene.add(building);
 
     // Player
-    loadedModel.scale.set(0.1, 0.1, 0.1);
-    player = loadedModel;
+    player = loadedModels[0];
+    player.scale.set(1.4, 1.4, 1.4);
     player.position.set(0, groundLevel, 1);
     player.castShadow = true;
     player.receiveShadow = true;
-    obstacleBoxes[player.uuid] = new THREE.Box3().setFromObject(player);
     scene.add(player);
 
     // Fence
-    const fenceGeometry = new THREE.BoxGeometry(10, 3, 0.1); // Size of the fence
-    const fenceMaterial = new THREE.MeshStandardMaterial({color: 0x8B4513});
-    fence = new THREE.Mesh(fenceGeometry, fenceMaterial);
-    fence.position.set(0, 1, 5); // Adjust the position
-    obstacleBoxes[fence.uuid] = new THREE.Box3().setFromObject(fence);
-    fence.name = 'fence'; // Name the fence
-    fence.castShadow = true;
-    fence.receiveShadow = true;
+    fence = loadedModels[1];
+    fence.scale.set(1.5, 1.5, 1.5);
+    let fence_0 = fence.children[0];
+    let fence_1 = fence.children[1];
+    fence_0.position.set(0, 0, 5);
+    fence_1.position.set(-1.3, 0, 4.65);
+    fence_1.rotation.y += Math.PI / 2;
+    fence_0.children.forEach((child) => {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        obstacles.push(child);
+    });
+    fence_1.children.forEach((child) => {
+        child.castShadow = true;
+        child.receiveShadow = true;
+        obstacles.push(child);
+    });
     scene.add(fence);
-
-    obstacles = [building, fence];
 
     // Target mark
     target = new THREE.Group();
     const circleGeometry = new THREE.CircleGeometry(1, 32);  // radius 1, 32 segments
-    const circleMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+    const circleMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
     const circle = new THREE.Mesh(circleGeometry, circleMaterial);
     target.add(circle);
-    const lineMaterial = new THREE.MeshBasicMaterial({color: 0x000000});
+    const lineMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
     const horizontalLineGeometry = new THREE.PlaneGeometry(2.5, 0.1);  // width, height
     const horizontalLine = new THREE.Mesh(horizontalLineGeometry, lineMaterial);
     target.add(horizontalLine);
@@ -353,6 +367,7 @@ function handleMovement() {
             player.rotation.y -= Math.PI / 2;
         else if (keys['s'])
             player.rotation.y += Math.PI;
+        player.rotation.y -= playerFacingOffset;
     }
     if (movingW) {
         controls.moveForward(speed);   // Move forward
@@ -390,16 +405,81 @@ function handleTarget() {
 
 function handleJump() {
     if (jumpInProgress) {
+        speed = 0.2;
         // Apply gravity and update position
         velocity += gravity;
         player.position.y += velocity;
 
         // Stop the jump when player reaches ground level
         if (player.position.y <= groundLevel) {
+            speed = 0.1;
             player.position.y = groundLevel;
             jumpInProgress = false;
         }
     }
+}
+
+function shakeScreen(intensity = 1, duration = 200) {
+    const originalPosition = camera.position.clone();
+    const startTime = performance.now();
+
+    function animateShake() {
+        const elapsedTime = performance.now() - startTime;
+        if (elapsedTime < duration) {
+            // Apply random shake based on intensity
+            camera.position.x = originalPosition.x + (Math.random() - 0.5) * intensity;
+            camera.position.y = originalPosition.y + (Math.random() - 0.5) * intensity;
+            camera.position.z = originalPosition.z + (Math.random() - 0.5) * intensity;
+
+            // Request the next frame to keep shaking
+            requestAnimationFrame(animateShake);
+        } else {
+            // Reset the camera position once shaking is complete
+            camera.position.copy(originalPosition);
+        }
+    }
+
+    // Start the shake animation
+    animateShake();
+}
+
+function animateAttack(attacker, target) {
+    const attackerCube = attacker;
+    const targetCube = target;
+    const originalPosition = attackerCube.position.clone();
+    const targetPosition = targetCube.position.clone();
+
+    // Calculate the mid-point to create an arc
+    const midPoint = originalPosition.clone().lerp(targetPosition, 0.5);
+    midPoint.y += 3; // Raise the midpoint to create an arc effect
+
+    // Move attacker in an arc towards target
+    const attackDuration = 600;
+    // const returnDuration = 300;
+    const startTime = performance.now();
+
+    function animateAttackMove() {
+        const elapsedTime = performance.now() - startTime;
+
+        if (elapsedTime < attackDuration) {
+            // Move in an arc towards target
+            const progress = elapsedTime / attackDuration;
+            const position1 = originalPosition.clone().lerp(midPoint, progress);
+            const position2 = midPoint.clone().lerp(targetPosition, progress);
+            attackerCube.position.lerpVectors(position1, position2, progress);
+            requestAnimationFrame(animateAttackMove);
+        } else {
+            // Start shaking the screen and play the attack sound
+            shakeScreen(0.3, 300);
+            // loadedSounds.forEach(sound => {
+            //     if (sound.name.includes("Attack.wav"))
+            //         sound.play();
+            // });
+        }
+    }
+
+    // Start the attack animation
+    animateAttackMove();
 }
 
 // Function to show a message
@@ -439,7 +519,16 @@ document.addEventListener('keydown', (event) => {
     keys[event.key] = true;
     if(event.key === 'r'){
         // Refresh the page
-        window.location.reload();
+        // window.location.reload();
+        console.log("Reset game data.");
+        localStorage.setItem('gameData', null);
+    }
+    if(event.key === 't'){
+        animateAttack(player, building);
+    }
+    if (event.code === 'Space' && !jumpInProgress) {
+        jumpInProgress = true;
+        velocity = jumpHeight;  // Initial jump force
     }
 });
 document.addEventListener('keyup', (event) => {
@@ -454,8 +543,10 @@ function onMouseDown() {
     const distance = player.position.distanceTo(building.position);
 
     if (distance <= 4) {
+        controls.unlock();
+        animateAttack(player, building);
         // window.location.href = 'combat.html'; // Navigate to combat.html
-        showMessage('Congratulations! You have reached the building! Level + 1.');
+        showMessage('This is logic for entering combat.');
         const currentLevel = gameData.level || 1;
         const currentScore = gameData.score || 0;
         const updateGameData = {
@@ -468,14 +559,6 @@ function onMouseDown() {
         console.log("Storing game data in localStorage: ", updateGameData);
     }
 }
-
-// Detect spacebar press
-document.addEventListener('keydown', function (event) {
-    if (event.code === 'Space' && !jumpInProgress) {
-        jumpInProgress = true;
-        velocity = jumpHeight;  // Initial jump force
-    }
-});
 
 // Handle window resizing
 window.addEventListener('resize', function () {
