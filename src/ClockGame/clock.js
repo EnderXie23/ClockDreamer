@@ -1,12 +1,10 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'https://unpkg.com/three@0.112/examples/jsm/controls/OrbitControls.js';
-import { ObjectLoader } from 'three';
-import LegacyJSONLoader from 'https://assets.codepen.io/1290466/LegacyJSONLoader.js'
 
 let scene, renderer, camera, controls;
 let settings, floorplan, container, light;
 const blockSize = 20; // 块大小
-const assetPath = './src/objects/cell'; // 使用本地相对路径
+const assetPath = 'data/objects/cell'; // 使用本地相对路径
 
 // 初始化场景、相机和控制器
 function init() {

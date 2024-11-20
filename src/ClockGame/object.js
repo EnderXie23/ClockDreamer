@@ -3,8 +3,8 @@ var loadCharacter = async (scene) => {
 	const mtlLoader = new THREE.MTLLoader();
 
 	// set asset paths
-	objLoader.setPath('./objects/character/');
-	mtlLoader.setPath('./objects/character/');
+	objLoader.setPath('data/objects/character/');
+	mtlLoader.setPath('data/objects/character/');
 
 	// load objects
 	await mtlLoader.load('character.mtl', (materials) => {
