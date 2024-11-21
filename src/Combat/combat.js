@@ -6,7 +6,7 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 
 let scene, camera, renderer;
 let loadedTextures = [], loadedSounds = [], bgm;
-let loadedModel, gameData;
+let loadedModel, gameData, playerData;
 const audioLoader = new THREE.AudioLoader();
 const listener = new THREE.AudioListener();
 
@@ -60,14 +60,14 @@ let allBuffs = [];
 
 // For player and enemy initialization
 let initPlayers = [
-    new Player(1, "Player 1", 90, 10000, 100, 100, 0.6, 2, 230, skillSet),
-    new Player(2, "Player 2", 90, 10000, 100, 100, 0.6, 2, 190, skillSet),
-    new Player(3, "Player 3", 90, 10000, 100, 100, 0.6, 2, 215, skillSet)
+    new Player(1, "Player 1", 90, 10000, 10000, 100, 100, 0.6, 2, 230, skillSet),
+    new Player(2, "Player 2", 90, 10000, 10000, 100, 100, 0.6, 2, 190, skillSet),
+    new Player(3, "Player 3", 90, 10000, 10000, 100, 100, 0.6, 2, 215, skillSet)
 ];
 let allPlayers;
 let initEnemies = [
-    new Enemy(1, "Enemy 1", 90, 10000, 100, 100, 0.6, 2, 200, skillSet),
-    new Enemy(2, "Enemy 2", 90, 10000, 100, 70, 1, 2, 330, skillSet),
+    new Enemy(1, "Enemy 1", 90, 10000, 10000, 100, 100, 0.6, 2, 200, skillSet),
+    new Enemy(2, "Enemy 2", 90, 10000, 10000, 150, 70, 0.7, 2, 170, skillSet),
 ];
 let allEnemies;
 
@@ -124,15 +124,15 @@ function loadModel(url) {
     });
 }
 
-function loadGameData() {
+function loadGameData(key) {
     return new Promise((resolve, reject) => {
-        const gameData = JSON.parse(localStorage.getItem('gameData'));
+        const gameData = JSON.parse(localStorage.getItem(key));
         if (gameData) {
-            console.log('Game data loaded from localStorage');
             resolve(gameData);
         } else {
-            console.warn('No game data found in localStorage');
-            resolve({});
+            console.warn('No data: ' + key + ' found in localStorage.');
+            // resolve({});
+            reject();
         }
     });
 }
@@ -140,6 +140,7 @@ function loadGameData() {
 function loadAllAssets() {
     const textureURLs = ['data/textures/grassy_terrain.jpg'];
     // const modelURL = './data/models/firefly/firefly3.0.pmx';
+    const dataKeys = ['gameData', 'playerData']
     const soundURLs = [
         'data/sounds/Buff.mp3',
         'data/sounds/Debuff.wav',
@@ -165,19 +166,38 @@ function loadAllAssets() {
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
     // const modelPromises = loadModel(modelURL);
-    const gameDataPromise = loadGameData();
+    const gameDataPromise = dataKeys.map(key => loadGameData(key));
 
-    Promise.all([...texturePromises, gameDataPromise])
+    Promise.all([...texturePromises, ...gameDataPromise])
         .then((results) => {
             loadedTextures = results.slice(0, texturePromises.length);
             // loadedModel = results[texturePromises.length];
-            gameData = results[texturePromises.length + 1];
+            const loadedData = results.slice(texturePromises.length, texturePromises.length + dataKeys.length);
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
             // console.log('Loaded model:', loadedModel);
-            console.log('Loaded game data:', gameData);
+            console.log('Loaded game data:', loadedData);
             console.log('Loaded sounds:', loadedSounds);
+
+            gameData = loadedData[0];
+            // Set difficulty level
+            const level = gameData.difficulty || 1;
+            initEnemies.forEach(enemy => {
+                enemy.atk += 10 * level;
+                enemy.def += 10 * level;
+                enemy.hp += 1000 * level;
+                enemy.speed += 10 * level;
+            });
+            showMessage('Welcome to difficulty level ' + level);
+
+            playerData = loadedData[1];
+            initPlayers = [];
+            playerData.forEach(player => {
+                console.log(player);
+                initPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def,
+                    player.crit_rate, player.crit_dmg, player.speed, skillSet));
+            });
 
             init();
 
@@ -266,11 +286,11 @@ function initGame() {
     // Clone the initial players and enemies
     allPlayers = [];
     initPlayers.forEach(player => {
-        allPlayers.push(new Player(player.id, player.name, player.lv, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
+        allPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
     });
     allEnemies = [];
     initEnemies.forEach(enemy => {
-        allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
+        allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.maxHp, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
     });
 
     // Clone the initial buffs
@@ -480,6 +500,23 @@ function clearActions() {
             actionContainer.removeChild(card);
         }
     });
+}
+
+// Function to show a message
+function showMessage(message) {
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
+
+    // Set the message text dynamically
+    messageText.innerHTML = message;
+
+    // Add the 'show' class to make it visible
+    messageBox.classList.add('show');
+
+    // Optional: Hide the message after a delay (e.g., 3 seconds)
+    setTimeout(() => {
+        messageBox.classList.remove('show');
+    }, 3000);  // Message disappears after 3 seconds
 }
 
 // Screen shaker
@@ -982,6 +1019,35 @@ function stopTargetSelector() {
     selectionIndicator.visible = false;
 }
 
+function handleWin(){
+    const updateData = {
+        level: (gameData.level || 1) + 1,
+        score: (gameData.score || 0) + 500,
+    };
+    localStorage.setItem('gameData', JSON.stringify(updateData));
+    console.log("Game data update:" + JSON.stringify(updateData));
+
+    // Store player data
+    playerData.forEach(player=>{
+        player.hp = getPlayerHp(player.id);
+    });
+    localStorage.setItem('playerData', JSON.stringify(playerData));
+    console.log("Player data update:" + JSON.stringify(playerData));
+    setTimeout(() => {
+        window.location.href = "index.html";
+    }, 1000);
+
+    function getPlayerHp(id){
+        let hp = 0;
+        allPlayers.forEach(player => {
+            if (player.id === id) {
+                hp = player.hp;
+            }
+        });
+        return hp;
+    }
+}
+
 // Logic after an action is performed
 function afterAction(proceed = true) {
     // Enable the buttons
@@ -991,12 +1057,14 @@ function afterAction(proceed = true) {
     updateStatusPanel();
 
     filterActions();
-    if (allPlayers.length === 0 || allEnemies.length === 0) {
+    if (allPlayers.length === 0) {
         stopTargetSelector();
-        setTimeout(() => {
-            alert("Game over!")
-        }, 200);
-        setTimeout(initGame, 1000);
+        showMessage("You lost! Game over!");
+    }
+    if (allEnemies.length === 0) {
+        stopTargetSelector();
+        showMessage("You won! Game over!");
+        handleWin();
     }
 
     if (!proceed) return;

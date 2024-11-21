@@ -60,12 +60,12 @@ export class Skill {
 }
 
 class Character {
-    constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed) {
+    constructor(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed) {
         this.id = id;
         this.name = name;
         this.lv = lv;
         this.hp = hp;
-        this.maxHp = hp;
+        this.maxHp = maxHp;
         this.atk = atk;
         this.def = def;
         this.crit_rate = crit_rate;
@@ -126,8 +126,8 @@ class Character {
 }
 
 export class Player extends Character {
-    constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed, skills = []) {
-        super(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed);
+    constructor(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed, skills = []) {
+        super(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed);
         this.skills = skills;
     }
 
@@ -143,8 +143,8 @@ export class Player extends Character {
 }
 
 export class Enemy extends Character {
-    constructor(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed, skills = []) {
-        super(id, name, lv, hp, atk, def, crit_rate, crit_dmg, speed);
+    constructor(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed, skills = []) {
+        super(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed);
         this.skills = skills;
     }
 

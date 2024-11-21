@@ -9,7 +9,11 @@ let camera, scene, renderer, controls;
 let building, fence, player, target, fenceLink;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
-let gameData;
+let gameData, playerData;
+
+// Player upgrade
+let selectedPlayerIndex = 0;
+let panelOpen = false;
 
 // Maximum and minimum pitch angles in radians
 const maxPitch = THREE.MathUtils.degToRad(150);
@@ -64,7 +68,7 @@ function loadModel(url) {
             }
             resolve(res);
         }, (xhr) => {
-            document.getElementById('progressBarFill').style.width
+            document.getElementById('loadingBar').style.width
                 = `${(xhr.loaded / xhr.total) * 100}%`;
         }, (error) => {
             console.error(error);
@@ -73,15 +77,15 @@ function loadModel(url) {
     });
 }
 
-function loadGameData() {
-    return new Promise((resolve) => {
-        const gameData = JSON.parse(localStorage.getItem('gameData'));
+function loadGameData(key) {
+    return new Promise((resolve, reject) => {
+        const gameData = JSON.parse(localStorage.getItem(key));
         if (gameData) {
-            console.log('Game data loaded from localStorage');
             resolve(gameData);
         } else {
-            console.warn('No game data found in localStorage');
-            resolve({});
+            console.warn('No data: ' + key + ' found in localStorage.');
+            // resolve({});
+            reject();
         }
     });
 }
@@ -89,41 +93,76 @@ function loadGameData() {
 function loadAllAssets() {
     const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb'];
+    const dataKeys = ['gameData', 'playerData']
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
     const modelPromises = modelURLs.map(url => loadModel(url));
-    const gameDataPromise = loadGameData();
+    const gameDataPromise = dataKeys.map(key => loadGameData(key));
 
-    Promise.all([...texturePromises, ...modelPromises, gameDataPromise])
+    Promise.all([...texturePromises, ...modelPromises, ...gameDataPromise])
         .then((results) => {
             console.log(results);
             loadedTextures = results.slice(0, texturePromises.length);
             loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
-            gameData = results[texturePromises.length + modelPromises.length];
+            const loadedData = results.slice(texturePromises.length + modelPromises.length,
+                texturePromises.length + modelPromises.length + gameDataPromise.length);
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
             console.log('Loaded models:', loadedModels);
-            console.log('Loaded game data:', gameData);
+            console.log('Loaded game data:', loadedData);
+            gameData = loadedData[0];
+            playerData = loadedData[1];
+            addUpdatePanel();
 
             init();
 
             setTimeout(() => {
-                document.getElementById('progressBar').style.visibility = 'hidden';
-                document.getElementById('loadingText').innerText = 'Welcome to level ' + (gameData.level || 1) + '!';
+                document.getElementById('loadingBar').style.display = 'none';
+                document.getElementById('loadingScreen').style.opacity = '0';
+                document.getElementById('container').style.display = 'block';
+                document.getElementById('container').style.opacity = '1';
+                showMessage('Welcome to level ' + (gameData.level || 1) + '!');
                 setTimeout(() => {
-                    document.getElementById('loadingScreen').style.opacity = '0';
-                    setTimeout(() => {
-                        document.getElementById('loadingScreen').style.display = 'none';
-                        document.getElementById('container').style.display = 'block';
-                        document.getElementById('container').style.opacity = '1';
-                    }, 1000);
+                    document.getElementById('loadingScreen').style.display = 'none';
                 }, 1000);
             }, 1000);
         })
         .catch((error) => {
             console.log("An error occurred while loading assets:", error);
         });
+}
+
+function updatePlayerPanel(index) {
+    const player = playerData[index];
+    document.getElementById("player-name").innerText = `Name: ${player.name}`;
+    document.getElementById("player-lv").innerText = `Level: ${player.lv}`;
+    document.getElementById("player-hp").innerText = `HP: ${player.hp}/${player.maxHp}`;
+    document.getElementById("player-atk").innerText = `ATK: ${player.atk}`;
+    document.getElementById("player-def").innerText = `DEF: ${player.def}`;
+    document.getElementById("player-crit").innerText = `Crit Rate: ${player.crit_rate * 100}%`;
+    document.getElementById("player-speed").innerText = `Speed: ${player.speed}`;
+    document.getElementById("money").innerText = `Money: $${gameData.score}`;
+}
+
+function addUpdatePanel() {
+    // Initialize the player selection dropdown
+    const playerSelect = document.getElementById("player-select");
+
+    // Populate the dropdown with player names
+    playerData.forEach(player => {
+        const option = document.createElement("option");
+        option.value = player.id;
+        option.textContent = player.name;
+        playerSelect.appendChild(option);
+    });
+    updatePlayerPanel(0);
+
+    // Event listener for player selection dropdown
+    playerSelect.addEventListener("change", function() {
+        selectedPlayerIndex = playerData.findIndex(player => player.id === parseInt(playerSelect.value));
+        updatePlayerPanel(selectedPlayerIndex);
+    });
 }
 
 function init() {
@@ -150,9 +189,6 @@ function init() {
 
     // Controls impl
     controls = new PointerLockControls(camera, renderer.domElement);
-    document.addEventListener('click', () => {
-        controls.lock();
-    });
     scene.add(controls.object);
     controls.maxPolarAngle = maxPitch;
     controls.minPolarAngle = minPitch;
@@ -306,6 +342,8 @@ function handleTransparency() {
 }
 
 function handleMovement() {
+    if(panelOpen) return;
+
     // The list of directions the player can move in
     let movable = {'a': [], 'w': [], 's': [], 'd': []};
     let displacement;
@@ -518,13 +556,32 @@ loadAllAssets();
 document.addEventListener('keydown', (event) => {
     keys[event.key] = true;
     if(event.key === 'r'){
-        // Refresh the page
         // window.location.reload();
         console.log("Reset game data.");
-        localStorage.setItem('gameData', null);
+        // localStorage.removeItem('gameData');
+        const playerData = [
+            {id: 1, name: "Player 1", lv: 90, maxHp: 10000, hp: 10000, atk: 100, def: 100, crit_rate: 0.6, crit_dmg: 2, speed: 230},
+            {id: 2, name: "Player 2", lv: 90, maxHp: 10000, hp: 10000, atk: 100, def: 100, crit_rate: 0.6, crit_dmg: 2, speed: 190},
+            {id: 3, name: "Player 3", lv: 90, maxHp: 10000, hp: 10000, atk: 100, def: 100, crit_rate: 0.6, crit_dmg: 2, speed: 215},
+        ]
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        console.log("Player data stored in localStorage: ", playerData);
     }
     if(event.key === 't'){
         animateAttack(player, building);
+    }
+    if(event.key === 'e'){
+        if(panelOpen) {
+            document.getElementById("player-panel").style.display = "none";
+            controls.lock();
+            document.getElementById("container").style.opacity = '1';
+            panelOpen = false;
+        }else{
+            document.getElementById("player-panel").style.display = "block";
+            controls.unlock();
+            document.getElementById("container").style.opacity = '0.5';
+            panelOpen = true;
+        }
     }
     if (event.code === 'Space' && !jumpInProgress) {
         jumpInProgress = true;
@@ -535,10 +592,55 @@ document.addEventListener('keyup', (event) => {
     keys[event.key] = false;
 });
 
+// Event listeners for upgrade buttons
+document.getElementById("upgrade-atk").addEventListener("click", function() {
+    if (gameData.score >= 10) {
+        playerData[selectedPlayerIndex].atk += 10;
+        gameData.score -= 10;
+        updatePlayerPanel(selectedPlayerIndex);
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        showMessage("ATK upgraded 10! Cost 10.")
+    } else {
+        showMessage("Not enough money!");
+    }
+});
+
+document.getElementById("upgrade-def").addEventListener("click", function() {
+    if (gameData.score >= 10) {
+        playerData[selectedPlayerIndex].def += 20;
+        gameData.score -= 10;
+        updatePlayerPanel(selectedPlayerIndex);
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        showMessage("DEF upgraded 20! Cost 10.")
+    } else {
+        showMessage("Not enough money!");
+    }
+});
+
+document.getElementById("upgrade-hp").addEventListener("click", function() {
+    if (gameData.score >= 20) {
+        let percent = playerData[selectedPlayerIndex].hp / playerData[selectedPlayerIndex].maxHp;
+        playerData[selectedPlayerIndex].maxHp += 100;
+        playerData[selectedPlayerIndex].hp = playerData[selectedPlayerIndex].maxHp * percent;
+        gameData.score -= 20;
+        updatePlayerPanel(selectedPlayerIndex);
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        showMessage("HP upgraded 100! Cost 20.")
+    } else {
+        showMessage("Not enough money!");
+    }
+});
+
 // Mouse event handling
 window.addEventListener('mousedown', onMouseDown, false);
 
 function onMouseDown() {
+    if (panelOpen) return;
+    controls.lock();
+
     // Get the distance from player to building
     const distance = player.position.distanceTo(building.position);
 
@@ -549,14 +651,19 @@ function onMouseDown() {
         showMessage('This is logic for entering combat.');
         const currentLevel = gameData.level || 1;
         const currentScore = gameData.score || 0;
-        const updateGameData = {
-            level: currentLevel + 1,
-            score: currentScore + 500,
+        const updateData = {
+            level: currentLevel,
+            score: currentScore,
+            difficulty: currentLevel,
         };
 
-        localStorage.setItem('gameData', JSON.stringify(updateGameData));
+        // localStorage.setItem('gameData', JSON.stringify(updateGameData));
+        localStorage.setItem('gameData', JSON.stringify(updateData));
+        console.log("Storing game data in localStorage: ", updateData);
 
-        console.log("Storing game data in localStorage: ", updateGameData);
+        setTimeout(()=>{
+            window.location.href = 'combat.html';
+        }, 1000);
     }
 }
 
