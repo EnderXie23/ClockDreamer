@@ -181,31 +181,14 @@ function loadAllAssets() {
             loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
             const loadedData = results.slice(texturePromises.length + modelPromises.length
                 , texturePromises.length + modelPromises.length + dataKeys.length);
+            gameData = loadedData[0];
+            playerData = loadedData[1];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
             console.log('Loaded models:', loadedModels);
             console.log('Loaded game data:', loadedData);
             console.log('Loaded sounds:', loadedSounds);
-
-            gameData = loadedData[0];
-            // Set difficulty level
-            const level = gameData.difficulty || 1;
-            initEnemies.forEach(enemy => {
-                enemy.atk += 10 * level;
-                enemy.def += 10 * level;
-                enemy.hp += 1000 * level;
-                enemy.speed += 10 * level;
-            });
-            showMessage('Welcome to difficulty level ' + level);
-
-            playerData = loadedData[1];
-            initPlayers = [];
-            playerData.forEach(player => {
-                console.log(player);
-                initPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def,
-                    player.crit_rate, player.crit_dmg, player.speed, skillSet));
-            });
 
             init();
 
@@ -215,6 +198,28 @@ function loadAllAssets() {
         .catch((error) => {
             console.error("An error occurred while loading assets:", error);
         });
+}
+
+function resolveGameData() {
+    if (gameData.state !== "in game"){
+        showMessage("Wrong game state");
+    }
+
+    // Set difficulty level
+    const level = gameData.difficulty || 1;
+    initEnemies.forEach(enemy => {
+        enemy.atk += 10 * level;
+        enemy.def += 10 * level;
+        enemy.hp += 1000 * level;
+        enemy.speed += 10 * level;
+    });
+    showMessage('Welcome to difficulty level ' + level);
+
+    initPlayers = [];
+    playerData.forEach(player => {
+        initPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def,
+            player.crit_rate, player.crit_dmg, player.speed, skillSet));
+    });
 }
 
 function init() {
@@ -273,6 +278,7 @@ function init() {
     // Add listener
     camera.add(listener);
 
+    resolveGameData();
     animate();
     initGame();
 }
@@ -1031,12 +1037,13 @@ function stopTargetSelector() {
 }
 
 function handleWin(){
-    const updateData = {
-        level: (gameData.level || 1) + 1,
-        score: (gameData.score || 0) + 500,
-    };
-    localStorage.setItem('gameData', JSON.stringify(updateData));
-    console.log("Game data update:" + JSON.stringify(updateData));
+    let updateGameData = {
+        level: gameData.level,
+        score: gameData.score + 500,
+        state: "win",
+    }
+    localStorage.setItem('gameData', JSON.stringify(updateGameData));
+    console.log("Game data update:" + JSON.stringify(updateGameData));
 
     // Store player data
     playerData.forEach(player=>{

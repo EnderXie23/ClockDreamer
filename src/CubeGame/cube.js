@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
 
 let renderer, scene, light, camera, controls;
-let data;
+let gameData, data, win = false;
 
 // Create Raycaster and mouse vector
 const raycaster = new THREE.Raycaster();
@@ -62,36 +62,62 @@ function loadFromFile(path) {
     });
 }
 
+function loadGameData(key) {
+    return new Promise((resolve, reject) => {
+        const gameData = JSON.parse(localStorage.getItem(key));
+        if (gameData) {
+            resolve(gameData);
+        } else {
+            console.warn('No data: ' + key + ' found in localStorage.');
+            resolve(null);
+        }
+    });
+}
+
 function loadAllAssets() {
     // const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
     // const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb'];
-    // const dataKeys = ['gameData', 'playerData']
-    //
+    const dataKeys = ['gameData']
+
     // const texturePromises = textureURLs.map(url => loadTexture(url));
     // const modelPromises = modelURLs.map(url => loadModel(url));
-    // const gameDataPromise = dataKeys.map(key => loadGameData(key));
+    const gameDataPromises = dataKeys.map(key => loadGameData(key));
 
-    const level = Math.floor(Math.random() * 5) + 1;
-    const path = 'data/cubes/cube' + level + '.json';
 
-    const dataPaths = [path];
-    const dataPromises = dataPaths.map(path => loadFromFile(path));
-
-    Promise.all([...dataPromises])
+    Promise.all([...gameDataPromises])
         .then((results) => {
-            data = results[0];
+            gameData = results.slice(0, 1)[0];
+            resolveGameData();
+            console.log("Loaded gameData: " + results.slice(0, 1));
 
-            console.log("Loaded game data: " + JSON.stringify(data));
-            showMessage("Welcome to level " + level + "! You have " + cubesLeft + " cubes left to place.");
-
-            init();
+            const path = "data/cubes/cube" + gameData.param + ".json";
+            const dataPaths = [path];
+            const dataPromises = dataPaths.map(path => loadFromFile(path));
+            Promise.all([...dataPromises])
+                .then((results2) => {
+                    data = results2[0];
+                    init();
+                })
+                .catch((error) => {
+                    console.log("An error occurred while loading assets:", error);
+                });
         })
         .catch((error) => {
             console.log("An error occurred while loading assets:", error);
         });
 }
 
-function init(){
+function resolveGameData() {
+    if (gameData.state !== "in game" || gameData.gameMode !== 2) {
+        showMessage("Invalid game state.");
+        console.log("Invalid game state.")
+    }
+    if (!gameData.param) {
+        gameData.param = 1;
+    }
+}
+
+function init() {
     // Renderer
     const container = document.getElementById('container');
     renderer = new THREE.WebGLRenderer({antiAlias: true});
@@ -135,6 +161,7 @@ function initGame() {
     initCubes = data.initCubes;
     initVis = data.initVis;
     cubesLeft = maxCubes - initCubes;
+    showMessage("Welcome! You have " + cubesLeft + " cubes left to place.");
     addIndicator();
 
     // Render Initial cubes
@@ -349,8 +376,25 @@ function onMouseUp() {
     }
 }
 
+function handleWin() {
+    win = true;
+    let updateGameData = {
+        level: gameData.level,
+        score: gameData.score + 500,
+        state: "win",
+    }
+    localStorage.setItem('gameData', JSON.stringify(updateGameData));
+    console.log("Game data update:" + JSON.stringify(updateGameData));
+    showMessage("Congratulations! You have won!");
+
+    setTimeout(() => {
+        window.location.href = "index.html";
+    }, 1000);
+}
+
 // Animate
 function animate() {
+    if (win) return;
     requestAnimationFrame(animate);
     try {
         updateIndicatorVisibility();
@@ -363,7 +407,7 @@ function animate() {
 
     if (cubesLeft === 0) {
         if (judge())
-            showMessage("Congratulations! You have won!");
+            handleWin();
         else
             showMessage("You have placed all cubes, but the solution is incorrect.");
     }
