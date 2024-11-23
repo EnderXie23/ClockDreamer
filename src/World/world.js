@@ -664,6 +664,8 @@ function onMouseDown() {
         setTimeout(()=>{
             window.location.href = 'combat.html';
         }, 1000);
+    } else {
+        showMessage("No enemy in sight!");
     }
 }
 

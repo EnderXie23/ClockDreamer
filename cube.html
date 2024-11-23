@@ -1,0 +1,46 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Cube Dreamer</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+        }
+
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            opacity: 0;
+            z-index: 1;
+            pointer-events: none; /* Prevent clicks while hidden */
+            transition: opacity 0.5s ease;
+        }
+
+        .message-box.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message-text {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<div id="messageBox" class="message-box">
+    <p id="messageText" class="message-text"></p>
+</div>
+<div id="container"></div>
+<script src="src/CubeGame/cube.js" type="module"></script>
+</body>
+</html>
+

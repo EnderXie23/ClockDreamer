@@ -5,8 +5,8 @@ import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 
 let scene, camera, renderer;
-let loadedTextures = [], loadedSounds = [], bgm;
-let loadedModel, gameData, playerData;
+let loadedTextures = [], loadedSounds = [], loadedModels = [];
+let gameData, playerData, bgm;
 const audioLoader = new THREE.AudioLoader();
 const listener = new THREE.AudioListener();
 
@@ -107,13 +107,20 @@ function loadTexture(url) {
 
 function loadModel(url) {
     return new Promise((resolve, reject) => {
-        let loader;
+        let loader, res;
         if (url.includes('.pmx'))
             loader = new MMDLoader();
         else
             loader = new GLTFLoader();
         loader.load(url, (model) => {
-            resolve(model);
+            if (url.includes('.pmx')) {
+                model.scale.set(0.1, 0.1, 0.1);
+                res = model;
+            }else {
+                model.scene.children[0].scale.set(1.2, 1.2, 1.2);
+                res = model.scene.children[0];
+            }
+            resolve(res);
         }, (xhr) => {
             document.getElementById('progressBarFill').style.width
                 = `${(xhr.loaded / xhr.total) * 100}%`;
@@ -139,7 +146,7 @@ function loadGameData(key) {
 
 function loadAllAssets() {
     const textureURLs = ['data/textures/grassy_terrain.jpg'];
-    // const modelURL = './data/models/firefly/firefly3.0.pmx';
+    const modelURLs = ['data/models/cube_character.glb', "data/models/cube_monster.glb"];
     const dataKeys = ['gameData', 'playerData']
     const soundURLs = [
         'data/sounds/Buff.mp3',
@@ -165,18 +172,19 @@ function loadAllAssets() {
     });
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
-    // const modelPromises = loadModel(modelURL);
+    const modelPromises = modelURLs.map(url => loadModel(url));
     const gameDataPromise = dataKeys.map(key => loadGameData(key));
 
-    Promise.all([...texturePromises, ...gameDataPromise])
+    Promise.all([...texturePromises, ...modelPromises, ...gameDataPromise])
         .then((results) => {
             loadedTextures = results.slice(0, texturePromises.length);
-            // loadedModel = results[texturePromises.length];
-            const loadedData = results.slice(texturePromises.length, texturePromises.length + dataKeys.length);
+            loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
+            const loadedData = results.slice(texturePromises.length + modelPromises.length
+                , texturePromises.length + modelPromises.length + dataKeys.length);
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
-            // console.log('Loaded model:', loadedModel);
+            console.log('Loaded models:', loadedModels);
             console.log('Loaded game data:', loadedData);
             console.log('Loaded sounds:', loadedSounds);
 
@@ -322,9 +330,10 @@ function initGame() {
 function createCubes() {
     allPlayers.forEach(player => {
         // Create a cube for each player
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
-        const cube = new THREE.Mesh(geometry, material);
+        // const geometry = new THREE.BoxGeometry(1, 1, 1);
+        // const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
+        // const cube = new THREE.Mesh(geometry, material);
+        const cube = loadedModels[0].clone();
 
         // Add the cube to the scene
         cube.position.set(player.id * 2 - 4, 0, 2);
@@ -360,9 +369,11 @@ function createCubes() {
 
     allEnemies.forEach(enemy => {
         // Create a cube for each enemy
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const material = new THREE.MeshStandardMaterial({color: 0xff0000});
-        const cube = new THREE.Mesh(geometry, material);
+        // const geometry = new THREE.BoxGeometry(1, 1, 1);
+        // const material = new THREE.MeshStandardMaterial({color: 0xff0000});
+        // const cube = new THREE.Mesh(geometry, material);
+        const cube = loadedModels[1].clone();
+        cube.scale.set(1.7, 1.7, 1.7);
 
         // Add the cube to the scene
         cube.position.set(enemy.id * 2 - 4, 0, -3);

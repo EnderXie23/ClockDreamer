@@ -1,32 +1,15 @@
 import * as THREE from 'three';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
 
-// Renderer
-const container = document.getElementById('container');
-const renderer = new THREE.WebGLRenderer({antiAlias: true});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-container.appendChild(renderer.domElement);
+let renderer, scene, light, camera, controls;
+let data;
 
-// Create scene
-let scene = new THREE.Scene();
-scene.background = new THREE.Color(0x87ceeb);
-
-// Create light
-const light = new THREE.PointLight(0xffffff, 1, 100);
-light.position.set(10, 10, 10);
-
-// Create camera
-const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(4, 4, 4);
-camera.lookAt(0, 0, 0);
-
-// Controls
-const controls = new OrbitControls(camera, renderer.domElement);
-controls.update();
-controls.maxPolarAngle = 2 * Math.PI / 3;
-controls.minAzimuthAngle = -Math.PI / 4;
-controls.maxAzimuthAngle = 2 * Math.PI / 3;
+// Create Raycaster and mouse vector
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let actionCubes = [], intersects = [];
+let targetCube;
+let dragging = false;
 
 // Cube
 let cubeGeometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
@@ -36,6 +19,14 @@ const visibilityStates = {
     VISIBLE: 2
 };
 let cubes = Array(3).fill().map(() => Array(3).fill().map(() => Array(3).fill(null)));
+
+// Load goals
+let maxCubes, cubesLeft, initCubes, lastPlaceCube;
+let goalCubes = [], initVis = [];
+
+// Goal indicators
+let goalZ = [], goalX = [];
+let faceGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.05);
 
 // Initialize cubes with visibility state
 for (let x = 0; x < 3; x++) {
@@ -47,34 +38,115 @@ for (let x = 0; x < 3; x++) {
             );
             cube.position.set(x - 1, y - 1, z - 1);
             cube.userData.visibilityState = visibilityStates.HIDDEN; // Initialize as hidden
-            scene.add(cube);
             cubes[x][y][z] = cube;
         }
     }
 }
 
-// Load goals
-let maxCubes, cubesLeft, initCubes;
-let goalCubes = [];
-let initVis = [];
-let lastPlaceCube;
-
-async function loadFromFile(path) {
-    try {
-        const response = await fetch(path);
-        if (!response.ok) {
-            console.error("Failed to load file");
-        }
-        return await response.json();
-    } catch (error) {
-        console.error(error);
-    }
+function loadFromFile(path) {
+    return new Promise((resolve, reject) => {
+        fetch(path)
+            .then(response => {
+                if (!response.ok) {
+                    console.error("Failed to load file");
+                    reject(new Error("Failed to load file"));
+                } else {
+                    return response.json();
+                }
+            })
+            .then(data => resolve(data))
+            .catch(error => {
+                console.error(error);
+                reject(error);
+            });
+    });
 }
 
-// Goal indicators
-let goalZ = [];
-let goalX = [];
-let faceGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.05);
+function loadAllAssets() {
+    // const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
+    // const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb'];
+    // const dataKeys = ['gameData', 'playerData']
+    //
+    // const texturePromises = textureURLs.map(url => loadTexture(url));
+    // const modelPromises = modelURLs.map(url => loadModel(url));
+    // const gameDataPromise = dataKeys.map(key => loadGameData(key));
+
+    const level = Math.floor(Math.random() * 5) + 1;
+    const path = 'data/cubes/cube' + level + '.json';
+
+    const dataPaths = [path];
+    const dataPromises = dataPaths.map(path => loadFromFile(path));
+
+    Promise.all([...dataPromises])
+        .then((results) => {
+            data = results[0];
+
+            console.log("Loaded game data: " + JSON.stringify(data));
+            showMessage("Welcome to level " + level + "! You have " + cubesLeft + " cubes left to place.");
+
+            init();
+        })
+        .catch((error) => {
+            console.log("An error occurred while loading assets:", error);
+        });
+}
+
+function init(){
+    // Renderer
+    const container = document.getElementById('container');
+    renderer = new THREE.WebGLRenderer({antiAlias: true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    // Create scene
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb);
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++)
+                scene.add(cubes[x][y][z]);
+
+    // Create light
+    light = new THREE.PointLight(0xffffff, 1, 100);
+    light.position.set(10, 10, 10);
+
+    // Create camera
+    camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(4, 4, 4);
+    camera.lookAt(0, 0, 0);
+
+    // Controls
+    controls = new OrbitControls(camera, renderer.domElement);
+    controls.update();
+    controls.maxPolarAngle = 2 * Math.PI / 3;
+    controls.minAzimuthAngle = -Math.PI / 4;
+    controls.maxAzimuthAngle = 2 * Math.PI / 3;
+
+    initGame();
+
+    animate();
+}
+
+function initGame() {
+    lastPlaceCube = null;
+    goalCubes = data.goalCubes;
+    maxCubes = data.maxCubes;
+    initCubes = data.initCubes;
+    initVis = data.initVis;
+    cubesLeft = maxCubes - initCubes;
+    addIndicator();
+
+    // Render Initial cubes
+    for (let x = 0; x < 3; x++)
+        for (let y = 0; y < 3; y++)
+            for (let z = 0; z < 3; z++)
+                cubes[x][y][z].userData.visibilityState = visibilityStates.HIDDEN;
+    initVis.forEach(loc => {
+        const [x, y, z] = loc;
+        cubes[x][y][z].userData.visibilityState = visibilityStates.VISIBLE;
+    });
+}
 
 function addIndicator() {
     for (let x = 0; x < 3; x++) {
@@ -181,33 +253,6 @@ function hideAdjacentCubes() {
                     cubes[x][y][z].userData.visibilityState = visibilityStates.HIDDEN;
 }
 
-// Init
-async function init() {
-    // Load game from file
-    loadFromFile("/data/cubes/cube3.json").then(data => {
-        goalCubes = data.goalCubes;
-        maxCubes = data.maxCubes;
-        initCubes = data.initCubes;
-        initVis = data.initVis;
-        cubesLeft = maxCubes - initCubes;
-
-        addIndicator();
-        lastPlaceCube = null;
-
-        for (let x = 0; x < 3; x++)
-            for (let y = 0; y < 3; y++)
-                for (let z = 0; z < 3; z++)
-                    cubes[x][y][z].userData.visibilityState = visibilityStates.HIDDEN;
-
-        // Render Initial cubes
-        initVis.forEach(loc => {
-            const [x, y, z] = loc;
-            cubes[x][y][z].userData.visibilityState = visibilityStates.VISIBLE;
-        });
-        controls.reset();
-    })
-}
-
 // Game judge
 function judge() {
     for (let x = 0; x < 3; x++)
@@ -227,106 +272,22 @@ function judge() {
     return true;
 }
 
-// Animations
-function showWinAnimation() {
-    const winText = document.createElement('div');
-    winText.innerHTML = "You Win!";
-    winText.style.position = 'absolute';
-    winText.style.top = '50%';
-    winText.style.left = '50%';
-    winText.style.fontSize = '48px';
-    winText.style.color = 'green';
-    winText.style.transform = 'translate(-50%, -50%)';
-    document.body.appendChild(winText);
+// Function to show a message
+function showMessage(message) {
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
 
-    // Automatically remove the message after 3 seconds
+    // Set the message text dynamically
+    messageText.innerHTML = message;
+
+    // Add the 'show' class to make it visible
+    messageBox.classList.add('show');
+
+    // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
-        document.body.removeChild(winText);
-    }, 3000);
+        messageBox.classList.remove('show');
+    }, 3000);  // Message disappears after 3 seconds
 }
-
-function showLoseAnimation() {
-    const loseText = document.createElement('div');
-    loseText.innerHTML = "You Lose!";
-    loseText.style.position = 'absolute';
-    loseText.style.top = '50%';
-    loseText.style.left = '50%';
-    loseText.style.fontSize = '48px';
-    loseText.style.color = 'red';
-    loseText.style.transform = 'translate(-50%, -50%)';
-    document.body.appendChild(loseText);
-
-    // Automatically remove the message after 3 seconds
-    setTimeout(() => {
-        document.body.removeChild(loseText);
-    }, 3000);
-}
-
-function showCubesLeftAnimation() {
-    const indText = document.createElement('div');
-    indText.innerHTML = "You have " + cubesLeft + " cubes left!";
-    if (cubesLeft !== 0)
-        indText.innerHTML += "<br>Press 'z' to undo, 'r' to restart";
-    indText.style.position = 'absolute';
-    indText.style.top = '80%';
-    indText.style.left = '20%';
-    indText.style.fontSize = '40px';
-    indText.style.color = 'green';
-    indText.style.transform = 'translate(-50%, -50%)';
-    document.body.appendChild(indText);
-
-    // Automatically remove the message after 1 second
-    setTimeout(() => {
-        document.body.removeChild(indText);
-    }, 1000);
-}
-
-// Animate
-function animate() {
-    requestAnimationFrame(animate);
-    try {
-        updateIndicatorVisibility();
-        updateCubeVisibility();
-    } catch (error) {
-        console.warn(error);
-    }
-    controls.update();
-    renderer.render(scene, camera);
-
-    if (cubesLeft === 0) {
-        if (judge())
-            showWinAnimation();
-        else
-            showLoseAnimation();
-        init();
-    }
-}
-
-await init();
-animate();
-
-// Keyboard event listener
-window.addEventListener('mousedown', onMouseDown, false);
-window.addEventListener('mousemove', onMouseMove, false);
-window.addEventListener('mouseup', onMouseUp, false);
-window.addEventListener('keydown', (event) => {
-    if (event.key === 'r') {
-        init();
-    }
-    if (event.key === 'z') {
-        if (!lastPlaceCube) return;
-        lastPlaceCube.userData.visibilityState = visibilityStates.HIDDEN;
-        cubesLeft++;
-        lastPlaceCube = null;
-    }
-});
-
-// Create Raycaster and mouse vector
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-let actionCubes = [], intersects = [];
-let targetCube;
-let dragging = false;
 
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
@@ -362,7 +323,7 @@ function onMouseDown(event) {
         // Mark the last placed cube
         lastPlaceCube = targetCube;
         if (cubesLeft > 0) cubesLeft--;
-        showCubesLeftAnimation();
+        showMessage("You have " + cubesLeft + " cubes left to place.");
     } else {
         // Show its adjacent cubes
         hideAdjacentCubes();
@@ -387,3 +348,49 @@ function onMouseUp() {
         hideAdjacentCubes();
     }
 }
+
+// Animate
+function animate() {
+    requestAnimationFrame(animate);
+    try {
+        updateIndicatorVisibility();
+        updateCubeVisibility();
+    } catch (error) {
+        console.warn(error);
+    }
+    controls.update();
+    renderer.render(scene, camera);
+
+    if (cubesLeft === 0) {
+        if (judge())
+            showMessage("Congratulations! You have won!");
+        else
+            showMessage("You have placed all cubes, but the solution is incorrect.");
+    }
+}
+
+loadAllAssets();
+
+// Keyboard event listener
+window.addEventListener('mousedown', onMouseDown, false);
+window.addEventListener('mousemove', onMouseMove, false);
+window.addEventListener('mouseup', onMouseUp, false);
+window.addEventListener('keydown', (event) => {
+    if (event.key === 'r') {
+        initGame();
+        showMessage("Game reset. You have " + cubesLeft + " cubes left to place.");
+    }
+    if (event.key === 'z') {
+        if (!lastPlaceCube) return;
+        lastPlaceCube.userData.visibilityState = visibilityStates.HIDDEN;
+        cubesLeft++;
+        lastPlaceCube = null;
+    }
+});
+
+// Handle window resizing
+window.addEventListener('resize', function () {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});
