@@ -2,11 +2,15 @@ import * as THREE from 'three';
 import {PointerLockControls} from "three/examples/jsm/controls/PointerLockControls.js";
 import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
+import {Water} from "three/examples/jsm/objects/Water.js";
+import {Sky} from "three/examples/jsm/objects/Sky.js";
+import Stats from "three/examples/jsm/libs/stats.module.js";
+import * as assert from "node:assert";
 
 // All global variables
 // Basic setup
-let camera, scene, renderer, controls;
-let building, fence, player, target, gate;
+let camera, scene, renderer, controls, stats, water, sky, sun;
+let building, fences, player, target, gate;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
 let gameData, playerData, gameMode;
@@ -91,7 +95,8 @@ function loadGameData(key) {
 }
 
 function loadAllAssets() {
-    const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
+    const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg',
+        'data/textures/waternormals.png'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb',
         'data/models/gate.glb', "data/models/gate_off.glb"];
     const dataKeys = ['gameData', 'playerData']
@@ -135,7 +140,7 @@ function loadAllAssets() {
 
 function resolveGameData() {
     // Check if game data exists
-    if(gameData === null){
+    if (gameData === null) {
         gameData = {
             level: 1,
             score: 0,
@@ -153,21 +158,21 @@ function resolveGameData() {
             } else if (gameData.gameMode === 2) {
                 window.location.href = 'cube.html';
             } else {
-                showMessage("Invalid game mode!")
+                showMessage("Invalid game mode!", 2);
             }
         } else if (gameData.state === "win") {
             showMessage("Welcome back! You have won the game!");
         } else if (gameData.state === "none") {
             showMessage("Welcome to level " + gameData.level + "!");
         }
-        if(!gameData.gameMode) {
+        if (!gameData.gameMode) {
             gameMode = Math.floor(Math.random() * 2) + 1;
             gameData.gameMode = gameMode;
             localStorage.setItem('gameData', JSON.stringify(gameData));
         }
         gameMode = gameData.gameMode;
     }
-    if (playerData === null){
+    if (playerData === null) {
         playerData = [
             {
                 id: 1,
@@ -215,11 +220,10 @@ function resolveGameData() {
 function init() {
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
 
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
-    camera.position.set(0, 0, 1);
+    camera.position.set(10, 0, 0);
     camera.lookAt(0, 0, 0); // Point the camera at the origin
 
     // Translate camera
@@ -233,6 +237,8 @@ function init() {
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     container.appendChild(renderer.domElement);
+    stats = new Stats();
+    container.appendChild(stats.dom);
 
     // Controls impl
     controls = new PointerLockControls(camera, renderer.domElement);
@@ -246,22 +252,25 @@ function init() {
     const directionalLight = new THREE.DirectionalLight(0xffffff, 2.5);
     directionalLight.position.set(0, 10, 10);
     directionalLight.castShadow = true;
-    directionalLight.shadow.camera.left = -20;
-    directionalLight.shadow.camera.right = 20;
-    directionalLight.shadow.camera.top = 20;
-    directionalLight.shadow.camera.bottom = -20;
+    directionalLight.shadow.camera.left = -30;
+    directionalLight.shadow.camera.right = 30;
+    directionalLight.shadow.camera.top = 30;
+    directionalLight.shadow.camera.bottom = -30;
     directionalLight.shadow.mapSize.width = 2048;  // Higher resolution
     directionalLight.shadow.mapSize.height = 2048;
     scene.add(directionalLight);
 
+    placeLayout();
+    animate();
+}
+
+function placeLayout() {
     // Load floor texture
     const groundTexture = loadedTextures[0];
-    groundTexture.wrapS = THREE.RepeatWrapping;
-    groundTexture.wrapT = THREE.RepeatWrapping;
-    groundTexture.repeat.set(20, 20);
+    groundTexture.wrapS = groundTexture.wrapT = THREE.RepeatWrapping;
 
     // Ground
-    const groundGeometry = new THREE.PlaneGeometry(500, 500);
+    const groundGeometry = new THREE.PlaneGeometry(50, 50);
     const groundMaterial = new THREE.MeshStandardMaterial({
         map: groundTexture, flatShading: true
     });
@@ -269,6 +278,43 @@ function init() {
     ground.rotation.x = -Math.PI / 2; // Rotate to make it horizontal
     ground.receiveShadow = true;
     scene.add(ground);
+
+    // Water
+    const waterGeometry = new THREE.PlaneGeometry(1000, 1000);
+    const waterNormals = loadedTextures[2];
+    waterNormals.wrapS = waterNormals.wrapT = THREE.RepeatWrapping;
+    water = new Water(
+        waterGeometry,
+        {
+            textureWidth: 512,
+            textureHeight: 512,
+            waterNormals: waterNormals,
+            sunDirection: new THREE.Vector3(),
+            sunColor: 0xffffff,
+            waterColor: 0x001e0f,
+            distortionScale: 3.7,
+            fog: scene.fog !== undefined
+        }
+    );
+    water.rotation.x = -Math.PI / 2;
+    water.position.set(0, -0.1, 0);
+    scene.add(water);
+
+    // Sky
+    sun = new THREE.Vector3();
+    sky = new Sky();
+    sky.scale.setScalar(1000);
+
+    const skyUniforms = sky.material.uniforms;
+
+    skyUniforms['turbidity'].value = 10;
+    skyUniforms['rayleigh'].value = 1;
+    skyUniforms['mieCoefficient'].value = 0.08;
+    skyUniforms['mieDirectionalG'].value = 0.5;
+    sun.setFromSphericalCoords(1, Math.PI / 2, 0);
+    skyUniforms['sunPosition'].value.copy(sun);
+    water.material.uniforms['sunDirection'].value.copy(sun).normalize();
+    scene.add(sky);
 
     // Building
     if (gameData.state !== "win") {
@@ -285,7 +331,7 @@ function init() {
         }
         building.material.transparent = true;
         building.material.opacity = 0.7;
-        building.position.set(2, 1, -4);
+        building.position.set(-10, 1, -10);
         building.castShadow = true;
         building.receiveShadow = true;
         obstacles.push(building);
@@ -309,30 +355,18 @@ function init() {
     // Player
     player = loadedModels[0];
     player.scale.set(1.4, 1.4, 1.4);
-    player.position.set(0, groundLevel, 1);
+    player.position.set(9, groundLevel, 1);
     player.castShadow = true;
     player.receiveShadow = true;
     scene.add(player);
 
     // Fence
-    fence = loadedModels[1];
-    fence.scale.set(1.5, 1.5, 1.5);
-    let fence_0 = fence.children[0];
-    let fence_1 = fence.children[1];
-    fence_0.position.set(0, 0, 5);
-    fence_1.position.set(-1.3, 0, 4.65);
-    fence_1.rotation.y += Math.PI / 2;
-    fence_0.children.forEach((child) => {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        obstacles.push(child);
-    });
-    fence_1.children.forEach((child) => {
-        child.castShadow = true;
-        child.receiveShadow = true;
-        obstacles.push(child);
-    });
-    scene.add(fence);
+    const types = [0, 1, 1, 1, 0, 1, 1, 1, 1];
+    const positions = [[0, 0, 5], [-3, 0, 4.5], [3.5, 0, 5], [9, 0, 5],
+        [0, 0, -4], [3.5, 0, -4], [9, 0, -4], [14, 0, 5], [14, 0, 0]];
+    const rotations = [0, Math.PI / 2, 0, 0, 0, 0, 0,
+        Math.PI / 2, Math.PI / 2];
+    addFences(types, positions, rotations);
 
     // Target mark
     target = new THREE.Group();
@@ -348,8 +382,26 @@ function init() {
     const verticalLine = new THREE.Mesh(verticalLineGeometry, lineMaterial);
     target.add(verticalLine);
     scene.add(target);
+}
 
-    animate();
+function addFences(types, positions, facings) {
+    const fenceModel = loadedModels[1];
+    fences = new THREE.Group();
+
+    for (let i = 0; i < types.length; i++) {
+        const fence = fenceModel.children[types[i]].clone();
+        fence.scale.setScalar(2);
+        fence.position.set(positions[i][0], positions[i][1], positions[i][2]);
+        fence.rotation.y = facings[i];
+        fence.children.forEach((child) => {
+            child.castShadow = true;
+            child.receiveShadow = true;
+            obstacles.push(child);
+        });
+        fences.add(fence);
+    }
+
+    scene.add(fences);
 }
 
 function updatePlayerPanel(index) {
@@ -630,20 +682,24 @@ function animateAttack(attacker, target) {
 }
 
 // Function to show a message
-function showMessage(message) {
+function showMessage(message, mode = 1) {
     const messageBox = document.getElementById('messageBox');
     const messageText = document.getElementById('messageText');
 
     // Set the message text dynamically
     messageText.innerHTML = message;
-
-    // Add the 'show' class to make it visible
     messageBox.classList.add('show');
+    if (mode === 2) {
+        messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
+    } else {
+        messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    }
+
 
     // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 3000);  // Message disappears after 3 seconds
+    }, 2000);  // Message disappears after 3 seconds
 }
 
 function animate() {
@@ -655,6 +711,9 @@ function animate() {
     handleTransparency();
     const offset = new THREE.Vector3(0, 1, 3).applyQuaternion(camera.quaternion);
     camera.position.lerp(player.position.clone().add(offset), 0.3);
+
+    water.material.uniforms['time'].value += 1.0 / 120.0;
+    stats.update();
 
     renderer.render(scene, camera);
 }
@@ -709,7 +768,7 @@ document.addEventListener('keydown', (event) => {
         console.log("Player data stored in localStorage: ", playerData);
     }
     if (event.key === 'f' && gameData.state === "win") {
-        if (player.position.distanceTo(gate.position) <= 4){
+        if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
             gameData.state = "none";
             localStorage.setItem('gameData', JSON.stringify(gameData));
@@ -734,7 +793,7 @@ document.addEventListener('keydown', (event) => {
             panelOpen = true;
         }
     }
-    if (event.code === 'Space' && !jumpInProgress) {
+    if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
         jumpInProgress = true;
         velocity = jumpHeight;  // Initial jump force
     }
@@ -799,7 +858,11 @@ function onMouseDown() {
 
     if (distance <= 4) {
         controls.unlock();
-        showMessage('You are entering combat!');
+        if (gameMode === 1) {
+            showMessage('You are entering combat!');
+        } else if (gameMode === 2) {
+            showMessage('You are entering cube game!')
+        }
         const currentLevel = gameData.level || 1;
         const currentScore = gameData.score || 0;
         const updateData = {
@@ -814,11 +877,11 @@ function onMouseDown() {
 
         animateAttack(player, building);
         setTimeout(() => {
-            if(gameMode === 1)
+            if (gameMode === 1)
                 window.location.href = 'combat.html';
             else if (gameMode === 2) {
-                gameData.param = Math.floor(Math.random() * 5) + 1;
-                localStorage.setItem('gameData', JSON.stringify(gameData));
+                updateData.param = Math.floor(Math.random() * 5) + 1;
+                localStorage.setItem('gameData', JSON.stringify(updateData));
                 window.location.href = 'cube.html';
             }
         }, 1000);

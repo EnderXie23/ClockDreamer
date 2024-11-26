@@ -34,7 +34,7 @@ for (let x = 0; x < 3; x++) {
         for (let z = 0; z < 3; z++) {
             const cube = new THREE.Mesh(
                 cubeGeometry,
-                new THREE.MeshBasicMaterial({color: 0x9D76D0, transparent: true})
+                new THREE.MeshBasicMaterial({color: 0xEAE545, transparent: true})
             );
             cube.position.set(x - 1, y - 1, z - 1);
             cube.userData.visibilityState = visibilityStates.HIDDEN; // Initialize as hidden
@@ -63,7 +63,7 @@ function loadFromFile(path) {
 }
 
 function loadGameData(key) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const gameData = JSON.parse(localStorage.getItem(key));
         if (gameData) {
             resolve(gameData);
@@ -83,12 +83,11 @@ function loadAllAssets() {
     // const modelPromises = modelURLs.map(url => loadModel(url));
     const gameDataPromises = dataKeys.map(key => loadGameData(key));
 
-
     Promise.all([...gameDataPromises])
         .then((results) => {
             gameData = results.slice(0, 1)[0];
+            console.log("Loaded game data: ", gameData);
             resolveGameData();
-            console.log("Loaded gameData: " + results.slice(0, 1));
 
             const path = "data/cubes/cube" + gameData.param + ".json";
             const dataPaths = [path];
@@ -109,8 +108,11 @@ function loadAllAssets() {
 
 function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 2) {
-        showMessage("Invalid game state.");
-        console.log("Invalid game state.")
+        showMessage("Wrong game state.", 2);
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 1000);
+        return new Error("Wrong game state");
     }
     if (!gameData.param) {
         gameData.param = 1;
@@ -127,7 +129,8 @@ function init() {
 
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
+    const loader = new THREE.TextureLoader();
+    scene.background = loader.load('data/img/clock_background.jpg');
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
@@ -246,7 +249,7 @@ function updateCubeVisibility() {
                     case visibilityStates.VISIBLE:
                         cube.visible = true;
                         cube.material.opacity = 0.9;
-                        cube.material.color = new THREE.Color(0x9D76D0);
+                        cube.material.color = new THREE.Color(0xEAE545);
                         break;
                 }
             }
@@ -300,20 +303,24 @@ function judge() {
 }
 
 // Function to show a message
-function showMessage(message) {
+function showMessage(message, mode = 1) {
     const messageBox = document.getElementById('messageBox');
     const messageText = document.getElementById('messageText');
 
     // Set the message text dynamically
     messageText.innerHTML = message;
-
-    // Add the 'show' class to make it visible
     messageBox.classList.add('show');
+    if (mode === 2) {
+        messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
+    } else {
+        messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    }
+
 
     // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 3000);  // Message disappears after 3 seconds
+    }, 2000);  // Message disappears after 3 seconds
 }
 
 // Handle mouse down event (selecting objects)

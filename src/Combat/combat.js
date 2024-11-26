@@ -202,7 +202,11 @@ function loadAllAssets() {
 
 function resolveGameData() {
     if (gameData.state !== "in game"){
-        showMessage("Wrong game state");
+        showMessage("Wrong game state", 2);
+        setTimeout(()=>{
+            window.location.href = "index.html";
+        }, 1000);
+        return new Error("Wrong game state");
     }
 
     // Set difficulty level
@@ -211,6 +215,7 @@ function resolveGameData() {
         enemy.atk += 10 * level;
         enemy.def += 10 * level;
         enemy.hp += 1000 * level;
+        enemy.maxHp += 1000 * level;
         enemy.speed += 10 * level;
     });
     showMessage('Welcome to difficulty level ' + level);
@@ -520,20 +525,24 @@ function clearActions() {
 }
 
 // Function to show a message
-function showMessage(message) {
+function showMessage(message, mode = 1) {
     const messageBox = document.getElementById('messageBox');
     const messageText = document.getElementById('messageText');
 
     // Set the message text dynamically
     messageText.innerHTML = message;
-
-    // Add the 'show' class to make it visible
     messageBox.classList.add('show');
+    if (mode === 2) {
+        messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
+    } else {
+        messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    }
+
 
     // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 3000);  // Message disappears after 3 seconds
+    }, 2000);  // Message disappears after 3 seconds
 }
 
 // Screen shaker
@@ -898,8 +907,7 @@ function updateStatusPanel() {
         playerStatus.innerHTML = player.name + ': ' + player.hp + ' HP<br>' + 'Atk: ' + player.atk + '    Def: ' + player.def + '<br>Speed: ' + player.speed;
         document.getElementById('status-panel').appendChild(playerStatus);
 
-        const maxHp = initPlayers.find(initPlayer => initPlayer.id === player.id).hp;
-        const hpPercentage = player.hp / maxHp;
+        const hpPercentage = player.hp / player.maxHp;
         player.hpBar.scale.set(hpPercentage, 1, 1); // Adjust the scale to represent remaining HP
         player.hpBar.position.x = player.hpBarBg.position.x - (1 - hpPercentage) / 2; // Adjust position to keep bar aligned
     });
@@ -909,8 +917,7 @@ function updateStatusPanel() {
         enemyStatus.innerHTML = enemy.name + ': ' + enemy.hp + ' HP<br>' + 'Atk: ' + enemy.atk + '    Def: ' + enemy.def + '<br>Speed: ' + enemy.speed;
         document.getElementById('status-panel').appendChild(enemyStatus);
 
-        const maxHp = initEnemies.find(initEnemy => initEnemy.id === enemy.id).hp;
-        const hpPercentage = enemy.hp / maxHp;
+        const hpPercentage = enemy.hp / enemy.maxHp;
         enemy.hpBar.scale.set(hpPercentage, 1, 1); // Adjust the scale to represent remaining HP
         enemy.hpBar.position.x = enemy.hpBarBg.position.x - (1 - hpPercentage) / 2; // Adjust position to keep bar aligned
     });
