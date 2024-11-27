@@ -1,0 +1,140 @@
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clock Dreamer</title>
+    <style>
+        #loadingScreen {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+            opacity: 1; /* Initially hidden */
+            transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
+        }
+
+        #container {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.8);
+            opacity: 0;
+            transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
+        }
+
+        #loadingBarContainer {
+            width: 80%;
+            height: 30px;
+            background: #444;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        #loadingBar {
+            width: 0;
+            height: 100%;
+            background: #4caf50;
+            transition: width 0.2s ease-out;
+        }
+
+        #loadingText {
+            margin-top: 15px;
+        }
+
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            opacity: 0;
+            z-index: 1;
+            pointer-events: none; /* Prevent clicks while hidden */
+            transition: opacity 0.5s ease;
+        }
+
+        .message-box.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message-text {
+            margin: 0;
+        }
+
+        #player-panel {
+            position: fixed;
+            top: 15%;
+            left: 30%;
+            width: 40%;
+            height: 70%;
+            background-color: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            color: white;
+            border-radius: 10px;
+            font-family: Arial, sans-serif;
+            align-content: center;
+            z-index: 2;
+            display: none;
+        }
+
+        #player-panel button {
+            margin-top: 10px;
+            padding: 5px;
+            font-size: 14px;
+        }
+
+        #player-select {
+            font-size: 14px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body>
+<div id="player-panel">
+    <h1>Player Info</h1>
+    <select id="player-select">
+        <!-- Player options will be populated dynamically -->
+    </select>
+
+    <p id="player-name">Name: </p>
+    <p id="player-lv">Level: </p>
+    <p id="player-hp">HP: </p>
+    <p id="player-atk">ATK: </p>
+    <p id="player-def">DEF: </p>
+    <p id="player-crit">Crit Rate: </p>
+    <p id="player-speed">Speed: </p>
+    <p id="money">Money: </p>
+
+    <button id="upgrade-atk">Upgrade ATK</button>
+    <button id="upgrade-def">Upgrade DEF</button>
+    <button id="upgrade-hp">Upgrade HP</button>
+</div>
+<div id="messageBox" class="message-box">
+    <p id="messageText" class="message-text"></p>
+</div>
+<div id="loadingScreen">
+    <div id="loadingBarContainer">
+        <div id="loadingBar"></div>
+    </div>
+    <p id="loadingText">Loading...</p>
+</div>
+<div id="container"></div>
+<div id="stageHint"></div>
+<script type="module" src="src/World/world.js"></script>
+</body>
+</html>

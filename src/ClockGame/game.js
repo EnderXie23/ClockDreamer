@@ -2,6 +2,7 @@ import {data} from './data.js';
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader.js';
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
+import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
 
 let scene;
 let renderer;
@@ -20,6 +21,10 @@ let progress = [];
 let pointLights = [];
 let pointLightsZ = [];
 let isBonus = false;
+let movableCube;
+let dragControls;
+let dragging = false;
+let selectedObject = null;
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -37,6 +42,7 @@ const CELL_TAIL = 2;
 const CELL_STAIRS = 3;
 const CELL_LIGHT = 4;
 const CELL_PILLAR = 5;
+const CELL_MOVABLE = 6;
 
 const initGame = async () => {
     // grid setup
@@ -50,7 +56,7 @@ const initGame = async () => {
     renderer = new THREE.WebGLRenderer({alpha: true, antialias: true});
     renderer.setPixelRatio(window.devicePixelRatio);
     renderer.setSize(width, height);
-    renderer.setClearColor(0x373a6a);
+    renderer.setClearColor(0xD2B48C);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
 
@@ -77,8 +83,9 @@ const initGame = async () => {
     controls.maxDistance = 2000;
     controls.enableDamping = true;
     controls.dampingFactor = 0.2;
+    controls.enableRotate = false;
 
-    controls.autoRotate = true;
+    controls.autoRotate = false;
     controls.autoRotateSpeed = -2;
 
     document.body.appendChild(renderer.domElement);
@@ -172,6 +179,14 @@ function floorplanRenderer() {
                             `${assetPath}/pillar.json`,
                         );
                         break;
+                    case CELL_MOVABLE:
+                        shape = new MovableCube(
+                            xPos, yPos, zPos,
+                            `rgb(${settings.cellColor})`,
+                            blockSize
+                        );
+                        break;
+
                 }
                 if (shape !== null) {
                     shape.render();
@@ -202,6 +217,43 @@ class Cube {
         if (this.isPlatform) {
             mesh.type = TYPE_PLATFORM;
         }
+
+        mesh.position.x = this.x;
+        mesh.position.y = this.y;
+        mesh.position.z = this.z;
+
+        if (this.rotate) {
+            mesh.rotation.x = this.rotate.x;
+            mesh.rotation.y = this.rotate.y;
+            mesh.rotation.z = this.rotate.z;
+        }
+
+        scene.add(mesh);
+    }
+}
+
+class MovableCube {
+    constructor(x, y, z, color, size, isPlatform = false, rotate = 0) {
+        this.x = x;
+        this.y = y;
+        this.z = z;
+        this.color = color;
+        this.size = size;
+        this.rotate = rotate ? rotate : undefined;
+        this.isPlatform = isPlatform;
+    }
+
+    render() {
+        let boxGeometry = new THREE.BoxGeometry(this.size, this.size, this.size);
+        let lambertMaterial = new THREE.MeshLambertMaterial({
+            color: this.color
+        });
+
+        let mesh = new THREE.Mesh(boxGeometry, lambertMaterial);
+        if (this.isPlatform) {
+            mesh.type = TYPE_PLATFORM;
+        }
+        mesh.draggable = true;
 
         mesh.position.x = this.x;
         mesh.position.y = this.y;
@@ -674,11 +726,7 @@ let getActualPosition = (mapVector) => {
 
 // ========== MOUSE ACTION ==========
 export function mouseListener() {
-    renderer.domElement.addEventListener('mousemove', (event) => {
-        event.preventDefault();
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    }, false);
+    renderer.domElement.addEventListener('mousemove', onMouseMove, false);
 
     renderer.domElement.addEventListener('click', onMouseDown, false);
     renderer.domElement.addEventListener('touchstart', onMouseDown, false);
@@ -707,6 +755,9 @@ let onMouseDown = async (event) => {
                 }
             }
 
+            if (target.draggable = true)
+                dragging = true;
+
             if (target !== null &&
                 MOUSE_POINTED !== target &&
                 target.position.z === Math.floor(data.floorplan.length / 2)
@@ -729,6 +780,27 @@ let onMouseDown = async (event) => {
         }
     }
 }
+
+let onMouseMove = (event) => {
+    event.preventDefault();
+    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+    if (dragging && selectedObject) {
+        mousePointer.setFromCamera(mouse, camera);
+        const intersects = mousePointer.intersectObject(scene.children[0]); // 假设地面是 scene.children[0]
+        if (intersects.length > 0) {
+            const intersectPoint = intersects[0].point;
+            selectedObject.position.x = intersectPoint.x;
+            selectedObject.position.y = intersectPoint.y;
+        }
+    }
+}
+
+window.addEventListener('mouseup', () => {
+    dragging = false;
+    selectedObject = null;
+});
 
 let isMobile = () => {
     const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);

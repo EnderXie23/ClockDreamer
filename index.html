@@ -1,139 +1,137 @@
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Clock Dreamer</title>
     <style>
-        #loadingScreen {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            color: white;
+        /* 通用样式 */
+        body {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Arial', sans-serif;
+            background: url('data/img/start.png') no-repeat center center fixed;
+            background-size: cover;
             display: flex;
             justify-content: center;
             align-items: center;
-            z-index: 1000;
-            opacity: 1; /* Initially hidden */
-            transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
-        }
-
-        #container {
-            position: absolute;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0, 0, 0, 0.8);
-            opacity: 0;
-            transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
-        }
-
-        #loadingBarContainer {
-            width: 80%;
-            height: 30px;
-            background: #444;
-            border-radius: 15px;
-            overflow: hidden;
-            margin-top: 10px;
-        }
-
-        #loadingBar {
-            width: 0;
-            height: 100%;
-            background: #4caf50;
-            transition: width 0.2s ease-out;
-        }
-
-        #loadingText {
-            margin-top: 15px;
-        }
-
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
+            height: 100vh;
             color: white;
-            padding: 20px;
-            border-radius: 10px;
-            font-size: 16px;
-            opacity: 0;
-            z-index: 1;
-            pointer-events: none; /* Prevent clicks while hidden */
-            transition: opacity 0.5s ease;
         }
 
-        .message-box.show {
-            opacity: 1;
-            pointer-events: auto;
+        /* 半透明容器 */
+        #welcome-screen {
+            text-align: center;
+            background: rgba(0, 0, 0, 0.5); /* 调整透明度 */
+            padding: 40px;
+            border-radius: 20px;
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); /* 增加阴影 */
+            backdrop-filter: blur(5px); /* 添加模糊效果 */
         }
 
-        .message-text {
-            margin: 0;
+        /* 游戏标题 */
+        #game-title {
+            font-size: 3.5rem;
+            font-weight: bold;
+            letter-spacing: 2px;
+            margin-bottom: 40px;
+            background: linear-gradient(90deg, #d4a017, #e67e22); /* 暗黄色到暗橙色渐变 */
+            background-clip: text;
+            -webkit-background-clip: text;
+            color: transparent; /* 仅显示渐变 */
+            text-shadow: 0 0 30px rgba(212, 160, 23, 0.6), 0 0 50px rgba(230, 126, 34, 0.8);
+            animation: pulseGlow 2.5s infinite; /* 动态发光 */
         }
 
-        #player-panel {
-            position: fixed;
-            top: 15%;
-            left: 30%;
-            width: 40%;
-            height: 70%;
-            background-color: rgba(0, 0, 0, 0.7);
-            padding: 20px;
-            color: white;
-            border-radius: 10px;
-            font-family: Arial, sans-serif;
-            align-content: center;
-            z-index: 2;
-            display: none;
+        @keyframes pulseGlow {
+            0%, 100% {
+                text-shadow: 0 0 20px rgba(212, 160, 23, 0.6), 0 0 30px rgba(230, 126, 34, 0.8);
+            }
+            50% {
+                text-shadow: 0 0 40px rgba(255, 195, 18, 0.8), 0 0 60px rgba(245, 146, 35, 0.9);
+            }
         }
 
-        #player-panel button {
-            margin-top: 10px;
-            padding: 5px;
-            font-size: 14px;
+        /* 按钮设计 */
+        .menu-button {
+            display: block;
+            margin: 15px auto;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #ffffff;
+            background: linear-gradient(145deg, #6b4f25, #9b6a2d); /* 暗黄色系立体渐变 */
+            border: none;
+            border-radius: 30px;
+            box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.1);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            width: 220px;
         }
 
-        #player-select {
-            font-size: 14px;
-            padding: 5px;
+        .menu-button:hover {
+            background: linear-gradient(145deg, #9b6a2d, #6b4f25);
+            box-shadow: 0 4px 15px rgba(245, 146, 35, 0.6); /* 悬停时添加橙色光晕 */
+            transform: translateY(-3px); /* 鼠标悬停效果 */
+        }
+
+        .menu-button:active {
+            transform: scale(0.98);
+            box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.6); /* 内凹效果 */
+        }
+
+        /* 分隔线 */
+        .separator {
+            height: 2px;
+            background: linear-gradient(to right, #9b6a2d, transparent); /* 暗橙渐变 */
+            margin: 20px auto;
+            width: 60%;
+            border-radius: 1px;
+        }
+
+        /* 淡入动画 */
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        #welcome-screen {
+            animation: fadeIn 1.5s ease-out;
         }
     </style>
 </head>
 <body>
-<div id="player-panel">
-    <h1>Player Info</h1>
-    <select id="player-select">
-        <!-- Player options will be populated dynamically -->
-    </select>
+<div id="welcome-screen">
+    <h1 id="game-title">Clock Dreamer</h1>
+    <button class="menu-button" id="start-button">Start</button>
+    <button class="menu-button" id="manual-button">Manual</button>
+    <button class="menu-button" id="settings-button">Settings</button>
+    <div class="separator"></div>
+    <p>Explore time and space...</p>
+</div>
 
-    <p id="player-name">Name: </p>
-    <p id="player-lv">Level: </p>
-    <p id="player-hp">HP: </p>
-    <p id="player-atk">ATK: </p>
-    <p id="player-def">DEF: </p>
-    <p id="player-crit">Crit Rate: </p>
-    <p id="player-speed">Speed: </p>
-    <p id="money">Money: </p>
+<script>
+    // 为 Start 按钮添加跳转功能
+    document.getElementById('start-button').addEventListener('click', function() {
+        window.location.href = 'start.html'; // 跳转到 start.html
+    });
 
-    <button id="upgrade-atk">Upgrade ATK</button>
-    <button id="upgrade-def">Upgrade DEF</button>
-    <button id="upgrade-hp">Upgrade HP</button>
-</div>
-<div id="messageBox" class="message-box">
-    <p id="messageText" class="message-text"></p>
-</div>
-<div id="loadingScreen">
-    <div id="loadingBarContainer">
-        <div id="loadingBar"></div>
-    </div>
-    <p id="loadingText">Loading...</p>
-</div>
-<div id="container"></div>
-<script type="module" src="src/World/world.js"></script>
+    // 你也可以为其他按钮（例如 Manual 和 Settings）设置不同的跳转页面：
+    document.getElementById('manual-button').addEventListener('click', function() {
+        alert('Manual is not available yet!'); // 示例：弹出提示信息
+    });
+
+    document.getElementById('settings-button').addEventListener('click', function() {
+        alert('Settings are under development!'); // 示例：弹出提示信息
+    });
+</script>
 </body>
 </html>

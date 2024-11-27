@@ -702,6 +702,56 @@ function showMessage(message, mode = 1) {
     }, 2000);  // Message disappears after 3 seconds
 }
 
+function showStageHint() {
+    const hintDiv = document.getElementById('stageHint');
+
+    // 创建提示框内容
+    hintDiv.innerHTML = 'F: move to the next stage';
+
+    // 设置提示框样式
+    hintDiv.style.position = 'absolute';
+    hintDiv.style.top = '50%';
+    hintDiv.style.left = '50%';
+    hintDiv.style.transform = 'translate(-50%, -50%)';
+    hintDiv.style.padding = '20px 40px';
+    hintDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    hintDiv.style.color = 'white';
+    hintDiv.style.fontSize = '18px';
+    hintDiv.style.borderRadius = '15px';
+    hintDiv.style.textAlign = 'center';
+    hintDiv.style.display = 'block';  // 显示提示框
+
+    // 隐藏提示框，设置延迟时间（例如1秒后隐藏）
+    setTimeout(() => {
+        hintDiv.style.display = 'none';
+    }, 1000);
+}
+
+function showGameHint() {
+    const hintDiv = document.getElementById('stageHint');
+
+    // 创建提示框内容
+    hintDiv.innerHTML = 'Click the mouse to start';
+
+    // 设置提示框样式
+    hintDiv.style.position = 'absolute';
+    hintDiv.style.top = '50%';
+    hintDiv.style.left = '50%';
+    hintDiv.style.transform = 'translate(-50%, -50%)';
+    hintDiv.style.padding = '20px 40px';
+    hintDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+    hintDiv.style.color = 'white';
+    hintDiv.style.fontSize = '18px';
+    hintDiv.style.borderRadius = '15px';
+    hintDiv.style.textAlign = 'center';
+    hintDiv.style.display = 'block';  // 显示提示框
+
+    // 隐藏提示框，设置延迟时间（例如1秒后隐藏）
+    setTimeout(() => {
+        hintDiv.style.display = 'none';
+    }, 1000);
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -767,6 +817,15 @@ document.addEventListener('keydown', (event) => {
         localStorage.setItem('playerData', JSON.stringify(playerData));
         console.log("Player data stored in localStorage: ", playerData);
     }
+    if (gameData.state === "win"){
+        if(player.position.distanceTo(gate.position) <= 4){
+            showStageHint();
+        }
+    }
+    // const distance = player.position.distanceTo(building.position);
+    // if (distance < 4){
+    //     showGameHint();
+    // }
     if (event.key === 'f' && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
@@ -796,6 +855,10 @@ document.addEventListener('keydown', (event) => {
     if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
         jumpInProgress = true;
         velocity = jumpHeight;  // Initial jump force
+    }
+    const distance = player.position.distanceTo(building.position);
+    if (distance < 4){
+        showGameHint();
     }
 });
 document.addEventListener('keyup', (event) => {
@@ -855,7 +918,6 @@ function onMouseDown() {
 
     // Get the distance from player to building
     const distance = player.position.distanceTo(building.position);
-
     if (distance <= 4) {
         controls.unlock();
         if (gameMode === 1) {
