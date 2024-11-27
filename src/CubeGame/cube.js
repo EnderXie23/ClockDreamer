@@ -115,7 +115,7 @@ function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 2) {
         showMessage("Wrong game state.", 2);
         setTimeout(() => {
-            window.location.href = "index.html";
+            window.location.href = "world.html";
         }, 1000);
         return new Error("Wrong game state");
     }
@@ -400,7 +400,7 @@ function handleWin() {
     showMessage("Congratulations! You have won!");
 
     setTimeout(() => {
-        window.location.href = "index.html";
+        window.location.href = "world.html";
     }, 1000);
 }
 

@@ -2,7 +2,7 @@ import {data} from './data.js';
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader.js';
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
-import { DragControls } from 'three/examples/jsm/controls/DragControls.js';
+import {DragControls} from 'three/examples/jsm/controls/DragControls.js';
 
 let scene;
 let renderer;
@@ -398,8 +398,8 @@ async function loadListener() {
     });
 
     defaultMapGeometry = new THREE.Vector3(
-        - (Math.floor(data.floorplan[0].length / 2) * blockSize),
-        - (Math.floor(data.floorplan[0].length / 2) * blockSize),
+        -(Math.floor(data.floorplan[0].length / 2) * blockSize),
+        -(Math.floor(data.floorplan[0].length / 2) * blockSize),
         (Math.ceil(data.floorplan.length / 2) * blockSize)
     );
 
@@ -460,8 +460,8 @@ let loadBonusListener = async () => {
     });
 
     defaultMapGeometry = new THREE.Vector3(
-        - (Math.floor(data.floorplan[0].length / 2) * blockSize),
-        - (Math.floor(data.floorplan[0].length / 2) * blockSize),
+        -(Math.floor(data.floorplan[0].length / 2) * blockSize),
+        -(Math.floor(data.floorplan[0].length / 2) * blockSize),
         (Math.ceil(data.floorplan.length / 2) * blockSize)
     );
 
@@ -727,57 +727,45 @@ let getActualPosition = (mapVector) => {
 // ========== MOUSE ACTION ==========
 export function mouseListener() {
     renderer.domElement.addEventListener('mousemove', onMouseMove, false);
-
     renderer.domElement.addEventListener('click', onMouseDown, false);
     renderer.domElement.addEventListener('touchstart', onMouseDown, false);
 }
 
 let onMouseDown = async (event) => {
     controls.autoRotate = false;
-    isMoving = false;
+    if (isMobile()) {
+        mouse.x = (event.changedTouches[0].clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.changedTouches[0].clientY / window.innerHeight) * 2 + 1;
+    }
 
-    let intersects;
-    if (!isMoving) {
-        if (isMobile()) {
-            mouse.x = (event.changedTouches[0].clientX / window.innerWidth) * 2 - 1;
-            mouse.y = -(event.changedTouches[0].clientY / window.innerHeight) * 2 + 1;
+    mousePointer.setFromCamera(mouse, camera);
+    let intersects = mousePointer.intersectObjects(scene.children);
+
+    if (intersects.length === 0) return;
+    let target;
+    for (let i = 0; i < intersects.length; i++) {
+        if (intersects[i].object.type === TYPE_PLATFORM) {
+            target = intersects[i].object;
+            break;
         }
+    }
+    if (target.draggable === true)
+        dragging = true;
 
-        mousePointer.setFromCamera(mouse, camera);
-        intersects = mousePointer.intersectObjects(scene.children);
-
-        if (intersects !== null && intersects.length > 0) {
-            let target;
-            for (let i = 0; i < intersects.length; i++) {
-                if (intersects[i].object.type === TYPE_PLATFORM) {
-                    target = intersects[i].object;
-                    break;
-                }
-            }
-
-            if (target.draggable = true)
-                dragging = true;
-
-            if (target !== null &&
-                MOUSE_POINTED !== target &&
-                target.position.z === Math.floor(data.floorplan.length / 2)
-            ) {
-                MOUSE_POINTED = target;
-                if (MOUSE_POINTED !== blockOnCursor) {
-                    if (blockOnCursor !== undefined) blockOnCursor.material.color.set(`rgb(${data.settings.cellColor})`);
-                    blockOnCursor = MOUSE_POINTED;
-                    blockOnCursor.material.color.set(0xFFFFFF);
-                }
-            }
-        } else {
-            MOUSE_POINTED = undefined;
+    if (MOUSE_POINTED !== target &&
+        target.position.z === Math.floor(data.floorplan.length / 2)) {
+        MOUSE_POINTED = target;
+        if (MOUSE_POINTED !== blockOnCursor) {
+            if (blockOnCursor !== undefined) blockOnCursor.material.color.set(`rgb(${data.settings.cellColor})`);
+            blockOnCursor = MOUSE_POINTED;
+            blockOnCursor.material.color.set(0xFFFFFF);
         }
+    }
 
-        if (MOUSE_POINTED) {
-            MOUSE_POINTED.material.color.set(0xFFFFFF);
-            isMoving = true;
-            path = await findPath(MOUSE_POINTED.position);
-        }
+    if (MOUSE_POINTED) {
+        MOUSE_POINTED.material.color.set(0xFFFFFF);
+        isMoving = true;
+        path = await findPath(MOUSE_POINTED.position);
     }
 }
 

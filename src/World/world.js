@@ -331,7 +331,7 @@ function placeLayout() {
         }
         building.material.transparent = true;
         building.material.opacity = 0.7;
-        building.position.set(-10, 1, -10);
+        building.position.set(-10, 1, 10);
         building.castShadow = true;
         building.receiveShadow = true;
         obstacles.push(building);

@@ -3,6 +3,7 @@ import {gsap} from 'gsap';
 import {Skill, Player, Enemy, Buff} from './Character.js';
 import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
+import {contain} from "three/src/extras/TextureUtils";
 
 let scene, camera, renderer;
 let loadedTextures = [], loadedSounds = [], loadedModels = [];
@@ -204,7 +205,7 @@ function resolveGameData() {
     if (gameData.state !== "in game"){
         showMessage("Wrong game state", 2);
         setTimeout(()=>{
-            window.location.href = "index.html";
+            window.location.href = "world.html";
         }, 1000);
         return new Error("Wrong game state");
     }
@@ -969,9 +970,12 @@ function targetSelector(targetType) {
     }
 
     function handleSelectionChange(event, raycaster, mouse) {
+        const container = document.getElementById('container');
+        const rect = container.getBoundingClientRect();
+
         // Calculate mouse position in normalized device coordinates
-        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+        mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+        mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
 
         // Update the raycaster with the mouse position
         raycaster.setFromCamera(mouse, camera);
@@ -1059,7 +1063,7 @@ function handleWin(){
     localStorage.setItem('playerData', JSON.stringify(playerData));
     console.log("Player data update:" + JSON.stringify(playerData));
     setTimeout(() => {
-        window.location.href = "index.html";
+        window.location.href = "world.html";
     }, 1000);
 
     function getPlayerHp(id){
