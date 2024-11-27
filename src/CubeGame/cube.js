@@ -28,13 +28,18 @@ let goalCubes = [], initVis = [];
 let goalZ = [], goalX = [];
 let faceGeometry = new THREE.BoxGeometry(0.9, 0.9, 0.05);
 
-// Initialize cubes with visibility state
+const textureLoader = new THREE.TextureLoader(); // 加载纹理的加载器
+const cubeTexture = textureLoader.load('data/textures/bluewood.jpg'); // 这里替换为纹理的路径
+
 for (let x = 0; x < 3; x++) {
     for (let y = 0; y < 3; y++) {
         for (let z = 0; z < 3; z++) {
             const cube = new THREE.Mesh(
                 cubeGeometry,
-                new THREE.MeshBasicMaterial({color: 0xEAE545, transparent: true})
+                new THREE.MeshBasicMaterial({
+                    map: cubeTexture, // 将纹理应用到材质
+                    transparent: true
+                })
             );
             cube.position.set(x - 1, y - 1, z - 1);
             cube.userData.visibilityState = visibilityStates.HIDDEN; // Initialize as hidden
@@ -130,7 +135,7 @@ function init() {
     // Create scene
     scene = new THREE.Scene();
     const loader = new THREE.TextureLoader();
-    scene.background = loader.load('data/img/clock_background.jpg');
+    scene.background = loader.load('data/img/2.png');
     for (let x = 0; x < 3; x++)
         for (let y = 0; y < 3; y++)
             for (let z = 0; z < 3; z++)
