@@ -1,7 +1,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Clock Dreamer</title>
     <style>
         #loadingScreen {
@@ -29,6 +29,7 @@
             background: rgba(0, 0, 0, 0.8);
             opacity: 0;
             transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
+            touch-action: none;
         }
 
         #loadingBarContainer {

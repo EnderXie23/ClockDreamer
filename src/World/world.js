@@ -5,12 +5,11 @@ import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 import {Water} from "three/examples/jsm/objects/Water.js";
 import {Sky} from "three/examples/jsm/objects/Sky.js";
 import Stats from "three/examples/jsm/libs/stats.module.js";
-import * as assert from "node:assert";
 
 // All global variables
 // Basic setup
-let camera, scene, renderer, controls, stats, water, sky, sun;
-let building, fences, player, target, gate;
+let camera, scene, renderer, controls, stats, zoom = 1;
+let building, fences, player, target, gate, water, sky, sun;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
 let gameData, playerData, gameMode;
@@ -245,6 +244,10 @@ function init() {
     scene.add(controls.object);
     controls.maxPolarAngle = maxPitch;
     controls.minPolarAngle = minPitch;
+    controls.enableDamping = true;
+    controls.dampingFactor = 0.25;
+    controls.enablePan = true;
+    controls.screenSpacePanning = false;
 
     // Create light
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -587,14 +590,22 @@ function handleMovement() {
 function handleTarget() {
     if (gameData.state === "win") {
         target.visible = false;
+        if(player.position.distanceTo(gate.position) <= 4){
+            showStageHint();
+        }
         return;
+    }
+
+    let distance = player.position.distanceTo(building.position);
+    if (distance < 4){
+        showGameHint();
     }
 
     target.position.copy(building.position);
     target.lookAt(player.position.x, target.position.y, player.position.z);
 
     // Get distance from target to player
-    const distance = player.position.distanceTo(building.position);
+    distance = player.position.distanceTo(building.position);
     target.visible = distance <= 10;
 
     let scale = distance / 14 + 0.1;
@@ -759,8 +770,8 @@ function animate() {
     handleTarget();
     handleJump();
     handleTransparency();
-    const offset = new THREE.Vector3(0, 1, 3).applyQuaternion(camera.quaternion);
-    camera.position.lerp(player.position.clone().add(offset), 0.3);
+    const offset = new THREE.Vector3(0, zoom, 3 * zoom).applyQuaternion(camera.quaternion);
+    camera.position.lerp(player.position.clone().add(offset), 0.3 * zoom);
 
     water.material.uniforms['time'].value += 1.0 / 120.0;
     stats.update();
@@ -817,15 +828,6 @@ document.addEventListener('keydown', (event) => {
         localStorage.setItem('playerData', JSON.stringify(playerData));
         console.log("Player data stored in localStorage: ", playerData);
     }
-    if (gameData.state === "win"){
-        if(player.position.distanceTo(gate.position) <= 4){
-            showStageHint();
-        }
-    }
-    // const distance = player.position.distanceTo(building.position);
-    // if (distance < 4){
-    //     showGameHint();
-    // }
     if (event.key === 'f' && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
@@ -855,10 +857,6 @@ document.addEventListener('keydown', (event) => {
     if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
         jumpInProgress = true;
         velocity = jumpHeight;  // Initial jump force
-    }
-    const distance = player.position.distanceTo(building.position);
-    if (distance < 4){
-        showGameHint();
     }
 });
 document.addEventListener('keyup', (event) => {
@@ -908,6 +906,22 @@ document.getElementById("upgrade-hp").addEventListener("click", function () {
 });
 
 // Mouse event handling
+window.addEventListener('wheel', (event) => {
+    zoom = THREE.MathUtils.clamp(zoom + event.deltaY * 0.001, 0.5, 2);
+}, false);
+
+// Touchscreen zoom
+// let touchStart = 0;
+// let touchEnd = 0;
+// window.addEventListener('touchstart', (event) => {
+//     touchStart = event.touches[0].clientY;
+// }, false);
+//
+// window.addEventListener('touchmove', (event) => {
+//     touchEnd = event.touches[0].clientY;
+//     zoom = THREE.MathUtils.clamp(zoom + (touchStart - touchEnd) * 0.001, 0.5, 2);
+// }, false);
+
 window.addEventListener('mousedown', onMouseDown, false);
 
 function onMouseDown() {
