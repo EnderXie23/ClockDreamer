@@ -1,12 +1,19 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Cube Dreamer</title>
     <style>
         body {
             margin: 0;
             overflow: hidden;
+            touch-action: none;
+        }
+
+        #container {
+            user-select: none;
+            -webkit-user-select: none; /* For Safari */
+            -webkit-touch-callout: none;
         }
 
         .message-box {
@@ -33,6 +40,18 @@
         .message-text {
             margin: 0;
         }
+
+        #operationPanel {
+            position: fixed;
+            bottom: 20px;
+            right: 40px;
+            justify-content: space-between;
+            gap: 120px;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: 1;
+            touch-action: none;
+        }
     </style>
 </head>
 <body>
@@ -40,6 +59,10 @@
     <p id="messageText" class="message-text"></p>
 </div>
 <div id="container"></div>
+<div id="operationPanel">
+    <button id="resetButton" style="scale: 3;">Reset</button>
+    <button id="undoButton" style="scale: 3;">Undo</button>
+</div>
 <script src="src/CubeGame/cube.js" type="module"></script>
 </body>
 </html>

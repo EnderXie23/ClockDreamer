@@ -4,7 +4,9 @@ import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
 import {Water} from "three/examples/jsm/objects/Water.js";
 import {Sky} from "three/examples/jsm/objects/Sky.js";
+import nipplejs from "nipplejs";
 import Stats from "three/examples/jsm/libs/stats.module.js";
+import {Euler} from "three";
 
 // All global variables
 // Basic setup
@@ -26,6 +28,13 @@ const minPitch = THREE.MathUtils.degToRad(80);
 const keys = {};
 let obstacles = []; // List of objects to check for transparency
 let playerFacingOffset = 0;
+
+// Mobile controls
+let touchStartX = 0, touchStartY = 0;
+let touchDeltaX = 0, touchDeltaY = 0;
+let draggingTouch = 0;
+let initialPinchDistance = null;
+let joystick, joystickActive = false;
 
 // Collision detection and response
 let speed = 0.1;
@@ -81,7 +90,7 @@ function loadModel(url) {
 }
 
 function loadGameData(key) {
-    return new Promise((resolve, reject) => {
+    return new Promise((resolve) => {
         const gameData = JSON.parse(localStorage.getItem(key));
         if (gameData) {
             resolve(gameData);
@@ -248,6 +257,28 @@ function init() {
     controls.dampingFactor = 0.25;
     controls.enablePan = true;
     controls.screenSpacePanning = false;
+
+    if(isMobile()) {
+        document.getElementById("operationPanel").style.display = "flex";
+        joystick = nipplejs.create({
+            zone: document.getElementById("joyStick"),
+            color: 'white',
+            position: {left: '50px', bottom: '50px'},
+            size: 170,
+        });
+        joystick.on('move', (evt, data) => {
+            const angle = data.angle.degree;
+
+            keys['w'] = angle >= 30 && angle <= 150;
+            keys['s'] = angle >= 210 && angle <= 330;
+            keys['a'] = angle > 120 && angle < 240;
+            keys['d'] = (angle >= 0 && angle < 60) || (angle > 300 && angle <= 360);
+        })
+        joystick.on('end', () => {
+            joystickActive= false;
+            keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
+        });
+    }
 
     // Create light
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
@@ -717,7 +748,7 @@ function showStageHint() {
     const hintDiv = document.getElementById('stageHint');
 
     // 创建提示框内容
-    hintDiv.innerHTML = 'F: move to the next stage';
+    hintDiv.innerHTML = (isMobile() ? 'Attack' : 'F') + ': move to the next stage';
 
     // 设置提示框样式
     hintDiv.style.position = 'absolute';
@@ -763,6 +794,57 @@ function showGameHint() {
     }, 1000);
 }
 
+function tryAttack() {
+    // Get the distance from player to building
+    const distance = player.position.distanceTo(building.position);
+    if (distance <= 4) {
+        if(!isMobile()) controls.unlock();
+        if (gameMode === 1) {
+            showMessage('You are entering combat!');
+        } else if (gameMode === 2) {
+            showMessage('You are entering cube game!')
+        }
+        const currentLevel = gameData.level || 1;
+        const currentScore = gameData.score || 0;
+        const updateData = {
+            level: currentLevel,
+            score: currentScore,
+            difficulty: currentLevel,
+            state: "in game",
+            gameMode: gameMode,
+        };
+        localStorage.setItem('gameData', JSON.stringify(updateData));
+        console.log("Storing game data in localStorage: ", updateData);
+
+        animateAttack(player, building);
+        setTimeout(() => {
+            if (gameMode === 1)
+                window.location.href = 'combat.html';
+            else if (gameMode === 2) {
+                updateData.param = Math.floor(Math.random() * 5) + 1;
+                localStorage.setItem('gameData', JSON.stringify(updateData));
+                window.location.href = 'cube.html';
+            }
+        }, 1000);
+    } else {
+        showMessage("No enemy in sight!");
+    }
+}
+
+function handlePanel(){
+    if (panelOpen) {
+        document.getElementById("player-panel").style.display = "none";
+        if(!isMobile()) controls.lock();
+        document.getElementById("container").style.opacity = '1';
+        panelOpen = false;
+    } else {
+        document.getElementById("player-panel").style.display = "block";
+        if(!isMobile()) controls.unlock();
+        document.getElementById("container").style.opacity = '0.5';
+        panelOpen = true;
+    }
+}
+
 function animate() {
     requestAnimationFrame(animate);
 
@@ -784,7 +866,7 @@ loadAllAssets();
 // Key press event listeners
 document.addEventListener('keydown', (event) => {
     keys[event.key] = true;
-    if (event.key === 'r') {
+    if (keys['r']) {
         console.log("Reset game data.");
         localStorage.removeItem('gameData');
         const playerData = [
@@ -828,7 +910,7 @@ document.addEventListener('keydown', (event) => {
         localStorage.setItem('playerData', JSON.stringify(playerData));
         console.log("Player data stored in localStorage: ", playerData);
     }
-    if (event.key === 'f' && gameData.state === "win") {
+    if (keys['f'] && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
             gameData.state = "none";
@@ -838,21 +920,11 @@ document.addEventListener('keydown', (event) => {
             showMessage("You are not at the gate!");
         }
     }
-    if (event.key === 't') {
+    if (keys['t']) {
         console.log(player.rotation.clone())
     }
-    if (event.key === 'e') {
-        if (panelOpen) {
-            document.getElementById("player-panel").style.display = "none";
-            controls.lock();
-            document.getElementById("container").style.opacity = '1';
-            panelOpen = false;
-        } else {
-            document.getElementById("player-panel").style.display = "block";
-            controls.unlock();
-            document.getElementById("container").style.opacity = '0.5';
-            panelOpen = true;
-        }
+    if (keys['e']) {
+        handlePanel();
     }
     if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
         jumpInProgress = true;
@@ -873,10 +945,9 @@ document.getElementById("upgrade-atk").addEventListener("click", function () {
         localStorage.setItem('gameData', JSON.stringify(gameData));
         showMessage("ATK upgraded 10! Cost 10.")
     } else {
-        showMessage("Not enough money!");
+        showMessage("Not enough money!", 2);
     }
 });
-
 document.getElementById("upgrade-def").addEventListener("click", function () {
     if (gameData.score >= 10) {
         playerData[selectedPlayerIndex].def += 20;
@@ -886,10 +957,9 @@ document.getElementById("upgrade-def").addEventListener("click", function () {
         localStorage.setItem('gameData', JSON.stringify(gameData));
         showMessage("DEF upgraded 20! Cost 10.")
     } else {
-        showMessage("Not enough money!");
+        showMessage("Not enough money!", 2);
     }
 });
-
 document.getElementById("upgrade-hp").addEventListener("click", function () {
     if (gameData.score >= 20) {
         let percent = playerData[selectedPlayerIndex].hp / playerData[selectedPlayerIndex].maxHp;
@@ -901,7 +971,7 @@ document.getElementById("upgrade-hp").addEventListener("click", function () {
         localStorage.setItem('gameData', JSON.stringify(gameData));
         showMessage("HP upgraded 100! Cost 20.")
     } else {
-        showMessage("Not enough money!");
+        showMessage("Not enough money!", 2);
     }
 });
 
@@ -909,60 +979,100 @@ document.getElementById("upgrade-hp").addEventListener("click", function () {
 window.addEventListener('wheel', (event) => {
     zoom = THREE.MathUtils.clamp(zoom + event.deltaY * 0.001, 0.5, 2);
 }, false);
-
-// Touchscreen zoom
-// let touchStart = 0;
-// let touchEnd = 0;
-// window.addEventListener('touchstart', (event) => {
-//     touchStart = event.touches[0].clientY;
-// }, false);
-//
-// window.addEventListener('touchmove', (event) => {
-//     touchEnd = event.touches[0].clientY;
-//     zoom = THREE.MathUtils.clamp(zoom + (touchStart - touchEnd) * 0.001, 0.5, 2);
-// }, false);
-
 window.addEventListener('mousedown', onMouseDown, false);
-
 function onMouseDown() {
-    if (panelOpen) return;
-    let flag = controls.isLocked;
-    controls.lock();
+    if (panelOpen || isMobile()) return;
+    if(!controls.isLocked) controls.lock();
     if (gameData.state === "win") return;
 
-    // Get the distance from player to building
-    const distance = player.position.distanceTo(building.position);
-    if (distance <= 4) {
-        controls.unlock();
-        if (gameMode === 1) {
-            showMessage('You are entering combat!');
-        } else if (gameMode === 2) {
-            showMessage('You are entering cube game!')
-        }
-        const currentLevel = gameData.level || 1;
-        const currentScore = gameData.score || 0;
-        const updateData = {
-            level: currentLevel,
-            score: currentScore,
-            difficulty: currentLevel,
-            state: "in game",
-            gameMode: gameMode,
-        };
-        localStorage.setItem('gameData', JSON.stringify(updateData));
-        console.log("Storing game data in localStorage: ", updateData);
+    tryAttack();
+}
 
-        animateAttack(player, building);
-        setTimeout(() => {
-            if (gameMode === 1)
-                window.location.href = 'combat.html';
-            else if (gameMode === 2) {
-                updateData.param = Math.floor(Math.random() * 5) + 1;
-                localStorage.setItem('gameData', JSON.stringify(updateData));
-                window.location.href = 'cube.html';
-            }
-        }, 1000);
-    } else if (flag) {
-        showMessage("No enemy in sight!");
+// Button event handling
+document.getElementById("panelButton").addEventListener("click", handlePanel, false);
+document.getElementById("jumpButton").addEventListener("click", function () {
+    if (!jumpInProgress && !panelOpen) {
+        jumpInProgress = true;
+        velocity = jumpHeight;  // Initial jump force
+    }
+}, false);
+document.getElementById("attackButton").addEventListener("click", function (){
+    if(panelOpen) return;
+    if(gameData.state === "win"){
+        if (player.position.distanceTo(gate.position) <= 4) {
+            gameData.level += 1;
+            gameData.state = "none";
+            localStorage.setItem('gameData', JSON.stringify(gameData));
+            window.location.reload();
+        } else {
+            showMessage("You are not at the gate!");
+        }
+    } else {
+        tryAttack();
+    }
+}, false);
+
+// Touch event handling
+document.addEventListener('touchstart', onTouchStart, false);
+document.addEventListener('touchmove', onTouchMove, false);
+document.addEventListener('touchend', onTouchEnd, false);
+
+function onTouchStart(event) {
+    // Check if the touch position is in the joystick area
+    const touchX = event.touches[event.touches.length - 1].pageX;
+    const touchY = event.touches[event.touches.length - 1].pageY;
+    const joyStick = document.getElementById("joyStick");
+    const joyStickRect = joyStick.getBoundingClientRect();
+    const flag = touchX >= joyStickRect.left && touchX <= joyStickRect.right && touchY >= joyStickRect.top && touchY <= joyStickRect.bottom;
+    joystickActive |= flag;
+    if ((event.touches.length === 1 && !joystickActive) || (event.touches.length === 2 && !flag)) {
+        touchStartX = event.touches[event.touches.length - 1].pageX;
+        touchStartY = event.touches[event.touches.length - 1].pageY;
+        draggingTouch = event.touches.length - 1;
+    } else if (event.touches.length === 2 && !joystickActive) {
+        // Pinch zoom start
+        const dx = event.touches[0].pageX - event.touches[1].pageX;
+        const dy = event.touches[0].pageY - event.touches[1].pageY;
+        initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
+    }
+}
+function onTouchMove(event) {
+    if(panelOpen) return;
+    if ((event.touches.length === 1 && !joystickActive) ||
+        (event.touches.length === 2 && joystickActive)) {
+        touchDeltaX = event.touches[draggingTouch].pageX - touchStartX;
+        touchDeltaY = event.touches[draggingTouch].pageY - touchStartY;
+
+        let _euler = new Euler( 0, 0, 0, 'YXZ' );
+        _euler.setFromQuaternion( camera.quaternion );
+
+        _euler.y -= touchDeltaX * 0.006;
+        _euler.x -= touchDeltaY * 0.006;
+
+        _euler.x = Math.max( Math.PI / 2 - maxPitch, Math.min(Math.PI / 2 - minPitch, _euler.x ) );
+
+        camera.quaternion.setFromEuler( _euler );
+
+        touchStartX = event.touches[draggingTouch].pageX;
+        touchStartY = event.touches[draggingTouch].pageY;
+    } else if (event.touches.length === 2 && !joystickActive) {
+        // Pinch zoom move
+        const dx = event.touches[0].pageX - event.touches[1].pageX;
+        const dy = event.touches[0].pageY - event.touches[1].pageY;
+        const currentPinchDistance = Math.sqrt(dx * dx + dy * dy);
+
+        if (initialPinchDistance) {
+            const deltaDistance = currentPinchDistance - initialPinchDistance;
+            zoom -= deltaDistance * 0.02;
+            zoom = THREE.MathUtils.clamp(zoom, 0.5, 2);
+        }
+
+        initialPinchDistance = currentPinchDistance;
+    }
+}
+function onTouchEnd(event) {
+    if (event.touches.length < 2) {
+        initialPinchDistance = null;
     }
 }
 
@@ -972,3 +1082,17 @@ window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
+
+let isMobile = () => {
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);
+    if (isMobile === true) {
+        return isMobile;
+    } else {
+        let check = false;
+        ((a) => {
+            if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series([46])0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br([ev])w|bumb|bw-([nu])|c55\/|capi|ccwa|cdm-|cell|chtm|cldc|cmd-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc-s|devi|dica|dmob|do([cp])o|ds(12|-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly([-_])|g1 u|g560|gene|gf-5|g-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd-([mpt])|hei-|hi(pt|ta)|hp( i|ip)|hs-c|ht(c([- _agpst])|tp)|hu(aw|tc)|i-(20|go|ma)|i230|iac([ \-\/])|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja([tv])a|jbro|jemu|jigs|kddi|keji|kgt([ \/])|klon|kpt |kwc-|kyo([ck])|le(no|xi)|lg( g|\/([klu])|50|54|-[a-w])|libw|lynx|m1-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t([- ov])|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30([02])|n50([025])|n7(0([01])|10)|ne(([cm])-|on|tf|wf|wg|wt)|nok([6i])|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan([adt])|pdxg|pg(13|-([1-8]|c))|phil|pire|pl(ay|uc)|pn-2|po(ck|rt|se)|prox|psio|pt-g|qa-a|qc(07|12|21|32|60|-[2-7]|i-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h-|oo|p-)|sdk\/|se(c([-01])|47|mc|nd|ri)|sgh-|shar|sie([-m])|sk-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h-|v-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl-|tdg-|tel([im])|tim-|t-mo|to(pl|sh)|ts(70|m-|m3|m5)|tx-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c([- ])|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas-|your|zeto|zte-/i.test(a.substr(0, 4)))
+                check = true;
+        })(navigator.userAgent || navigator.vendor || window.opera);
+        return check;
+    }
+}

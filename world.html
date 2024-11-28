@@ -103,6 +103,31 @@
             font-size: 14px;
             padding: 5px;
         }
+
+        #joyStick {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 40vw;
+            height: 40vh;
+            background-color: rgba(0, 0, 0, 0.0);
+            z-index: 1;
+            -webkit-user-select: none; /* For Safari */
+            -webkit-touch-callout: none;
+            touch-action: none;
+        }
+
+        #operationPanel {
+            position: fixed;
+            bottom: 20px;
+            right: 40px;
+            justify-content: space-between;
+            gap: 120px;
+            display: none;
+            background-color: rgba(0, 0, 0, 0.3);
+            z-index: 1;
+            touch-action: none;
+        }
     </style>
 </head>
 <body>
@@ -135,7 +160,13 @@
     <p id="loadingText">Loading...</p>
 </div>
 <div id="container"></div>
+<div id="joyStick"></div>
 <div id="stageHint"></div>
+<div id="operationPanel">
+    <button id="panelButton" style="scale: 3;">Panel</button>
+    <button id="attackButton" style="scale: 3;">Attack</button>
+    <button id="jumpButton" style="scale: 3;">Jump</button>
+</div>
 <script type="module" src="src/World/world.js"></script>
 </body>
 </html>
