@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import {Reflector} from "three/examples/jsm/objects/Reflector.js";
-import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
 const container = document.getElementById('container');
@@ -53,12 +53,13 @@ const redBlockGeometry = new THREE.BoxGeometry(6, 1, 1);
 redBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(2.5, 0, 0));
 const redBlock = new THREE.Mesh(redBlockGeometry, blockMaterialRed);
 redBlock.position.set(-1, 0, -2);
+redBlock.state = 0;
 scene.add(redBlock);
 
 // Create mirror
 const mirrorWidth = 5;
 const mirrorHeight = 8;
-let geometry = new THREE.PlaneGeometry( mirrorWidth, mirrorHeight );
+let geometry = new THREE.PlaneGeometry(mirrorWidth, mirrorHeight);
 let mirror = new Reflector(geometry, {
     clipBias: 0.003,
     textureWidth: window.innerWidth * window.devicePixelRatio,
@@ -88,71 +89,6 @@ let needs_log = true;
 
 mirror.material.transparent = true;
 mirror.material.opacity = 0.9;
-
-function renderRotation() {
-    let rotationSpeed = Math.PI / 60;
-    if (targetRotation < 0) {
-        rotationSpeed *= -1;
-    }
-
-    // rotate till target
-    if (animationInProgress) {
-        if (totalRotation < Math.abs(targetRotation)) {
-            redBlock.rotation.y += rotationSpeed;
-            totalRotation += Math.abs(rotationSpeed);
-        } else {
-            animationInProgress = false;
-        }
-    }
-}
-
-
-// Main scene render loop
-
-
-function createTrail() {
-    // Create a simple 3D trail using box geometries
-    const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
-
-    const trailWidth = 1;
-    const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
-
-    // Create multiple segments to represent the trail
-    for (let i = 0; i < 5; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
-        );
-        trailSegment.position.set(-1, 0, 3 - i);  // Spread segments along the Z axis
-        trailSegment.layers.set(NO_REF_LAYER);
-        scene.add(trailSegment);
-        if (i === 0){
-            const destination1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8),destinationMaterial);
-            destination1.position.set(-1, 0.7, 3 - i);
-            scene.add(destination1);
-            destination1.layers.set(NO_REF_LAYER);
-        }
-    }
-
-    for (let i = 0; i < 2; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
-        );
-        trailSegment.position.set(-7, 0, 3 - i);  // Spread segments along the Z axis
-        scene.add(trailSegment);
-        trailSegment.layers.set(NO_REF_LAYER);
-    }
-    const blueBlockGeometry = new THREE.BoxGeometry(4, 1, 1);
-    // blueBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(1.5, 0, 0));
-    const blueBlock = new THREE.Mesh(blueBlockGeometry, trailMaterial);
-    blueBlock.position.set(0.5, 0, -10);
-    scene.add(blueBlock);
-    const destination2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8),destinationMaterial);
-    destination2.position.set(2.0, 0.7, -10);
-    scene.add(destination2);
-    destination2.layers.set(NO_REF_LAYER);
-}
 
 class Light {
     constructor(x, y, z, color, size = 0, show = 1, amplitude = 10, frequency = 3) {
@@ -195,7 +131,8 @@ class Light {
         this.pointLight.position.y = this.y + Math.sin(time * this.frequency) * this.amplitude;
     }
 }
-let Lightshow = [1,1];
+
+let Lightshow = [1, 1];
 // 创建一个点光源实例
 let lightPoint1 = new Light(
     -1, 1.5, 3,   // 位置
@@ -216,17 +153,10 @@ let lightPoint2 = new Light(
 
 // Create a helper for displaying the coordinate axes
 const axesHelper = new THREE.AxesHelper(5); // The number '5' is the size of the axes
+axesHelper.visible = false;
 scene.add(axesHelper);
+
 // Objects and main character
-
-// Assume you already loaded the model and set up the scene
-// let model = null; // The model object
-// loader.load('data/objects/character/plant1.glb', function (gltf) {
-//     model = gltf.scene;
-//     model.position.set(-5.5, 0.2, 4); // Initial position
-//     scene.add(model);
-// });
-
 class Model {
     constructor(startX, startY, startZ, loadpath, scene) {
         this.startX = startX;
@@ -239,11 +169,10 @@ class Model {
         this.animationStartTime = 0; // 动画开始时间
         this.animationDuration = 0.5; // 增加动画持续时间，使动画更慢
         this.scene = scene;
-        this.hasMoved = false; // 记录是否已移动，防止重复动画
         this.animationStages = [
-            { target: new THREE.Vector3(-5.5, 0.2, 0), duration: 0.5 },  // 阶段1，增加时间
-            { target: new THREE.Vector3(-0.5, 0.2, 0), duration: 0.5 },  // 阶段2，增加时间
-            { target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5 }   // 阶段3，增加时间
+            {target: new THREE.Vector3(-5.5, 0.2, 0), duration: 0.5},  // 阶段1，增加时间
+            {target: new THREE.Vector3(-0.5, 0.2, 0), duration: 0.5},  // 阶段2，增加时间
+            {target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5}   // 阶段3，增加时间
         ];
         this.currentStage = 0; // 当前阶段
         this.stageStartTime = 0; // 当前阶段开始时间
@@ -263,7 +192,7 @@ class Model {
     // 动画方法
     animate() {
         // 第一个动画 (goal1 == 1)
-        if (goal1 === 1 && !this.isAnimating && this.isLoaded && !this.hasMoved) {
+        if (goal1 === 1 && !this.isAnimating && this.isLoaded) {
             this.isAnimating = true;  // 标记动画开始
             this.stageStartTime = Date.now();  // 记录动画开始时间
         }
@@ -286,8 +215,7 @@ class Model {
                 this.currentStage++;  // 进入下一个阶段
                 if (this.currentStage >= this.animationStages.length) {
                     this.isAnimating = false;  // 所有阶段完成
-                    // this.hasMoved = true;  // 标记模型已经完成移动
-                    goal1 = 0;
+                    goal1 = 2;
                     console.log("动画完成");
                 } else {
                     // 更新动画开始时间，继续下一个阶段
@@ -301,9 +229,9 @@ class Model {
             this.isAnimating = true;  // 标记动画开始
             this.stageStartTime = Date.now();  // 记录动画开始时间
             this.animationStages = [ // 重置动画阶段为goal2的动画
-                { target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5 },  // 阶段1
-                { target: new THREE.Vector3(-0.5, 0.2, -6), duration: 0.5 },  // 阶段2
-                { target: new THREE.Vector3(1.7, 0.6, -6), duration: 0.5 }   // 阶段3
+                {target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5},  // 阶段1
+                {target: new THREE.Vector3(-0.5, 0.2, -6), duration: 0.5},  // 阶段2
+                {target: new THREE.Vector3(1.7, 0.6, -6), duration: 0.5}   // 阶段3
             ];
             this.currentStage = 0; // 重置为第一个阶段
         }
@@ -327,7 +255,7 @@ class Model {
                 if (this.currentStage >= this.animationStages.length) {
                     this.isAnimating = false;  // 所有阶段完成
                     console.log("goal2 动画完成");
-                    goal2 = 0;
+                    goal2 = 2;
                 } else {
                     // 更新动画开始时间，继续下一个阶段
                     this.stageStartTime = Date.now();
@@ -337,17 +265,16 @@ class Model {
     }
 }
 
-let model = new Model(-5.5, 0.2, 4,  'data/objects/character/plant1.glb', scene);
+let model = new Model(-5.5, 0.2, 4, 'data/objects/character/plant1.glb', scene);
 // -0.5, 0.2, -6
 // 1.7, 0.6, -6
 function animate() {
-
     renderRotation();
+    handleGoals();
     lightPoint1.animate();
     lightPoint2.animate();
     model.animate();
     renderer.render(scene, camera);
-
 
     requestAnimationFrame(animate);
     if (needs_log) {
@@ -355,6 +282,82 @@ function animate() {
 
     }
 }
+
+function renderRotation() {
+    let rotationSpeed = Math.PI / 60;
+    if (targetRotation < 0) {
+        rotationSpeed *= -1;
+    }
+
+    // rotate till target
+    if (animationInProgress) {
+        if (totalRotation < Math.abs(targetRotation)) {
+            redBlock.rotation.y += rotationSpeed;
+            totalRotation += Math.abs(rotationSpeed);
+        } else {
+            animationInProgress = false;
+        }
+    }
+}
+
+function createTrail() {
+    // Create a simple 3D trail using box geometries
+    const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
+
+    const trailWidth = 1;
+    const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
+
+    // Create multiple segments to represent the trail
+    for (let i = 0; i < 5; i++) {
+        const trailSegment = new THREE.Mesh(
+            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
+            trailMaterial
+        );
+        trailSegment.position.set(-1, 0, 3 - i);  // Spread segments along the Z axis
+        trailSegment.layers.set(NO_REF_LAYER);
+        scene.add(trailSegment);
+        if (i === 0) {
+            const destination1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), destinationMaterial);
+            destination1.position.set(-1, 0.7, 3 - i);
+            scene.add(destination1);
+            destination1.layers.set(NO_REF_LAYER);
+        }
+    }
+
+    for (let i = 0; i < 2; i++) {
+        const trailSegment = new THREE.Mesh(
+            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
+            trailMaterial
+        );
+        trailSegment.position.set(-7, 0, 3 - i);  // Spread segments along the Z axis
+        scene.add(trailSegment);
+        trailSegment.layers.set(NO_REF_LAYER);
+    }
+    const blueBlockGeometry = new THREE.BoxGeometry(4, 1, 1);
+    // blueBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(1.5, 0, 0));
+    const blueBlock = new THREE.Mesh(blueBlockGeometry, trailMaterial);
+    blueBlock.position.set(0.5, 0, -10);
+    scene.add(blueBlock);
+    const destination2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), destinationMaterial);
+    destination2.position.set(2.0, 0.7, -10);
+    scene.add(destination2);
+    destination2.layers.set(NO_REF_LAYER);
+}
+
+function handleGoals() {
+    if(animationInProgress) return;
+    if (yellowBlock.position.z === -1 && redBlock.state === 2
+        && goal1 === 0) {
+        goal1 = 1;
+    }
+    if (redBlock.rotation.y > 1.5 && redBlock.state === 1
+        && mirror.position.x === -1 && goal1 === 2 && goal2 === 0) {
+        goal2 = 1;
+    }
+    // console.log("goal1:", goal1);
+    // console.log("goal2:", goal2);
+}
+
 createTrail();
 animate();
 
@@ -367,14 +370,14 @@ window.addEventListener('mouseup', onMouseUp, false);
 const raycaster = new THREE.Raycaster();
 const mouse = new THREE.Vector2();
 
+let originalIntersection = new THREE.Vector3();
+let originalPos;
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
-    event.preventDefault();
-
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    console.log(mouse.x, mouse.y);
+    // console.log(mouse.x, mouse.y);
 
     // Update the rayCaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
@@ -385,10 +388,19 @@ function onMouseDown(event) {
     if (intersects.length > 0) {
         selectedObject = intersects[0].object;
 
-        if (selectedObject === yellowBlock || selectedObject === mirror) {
+        if (selectedObject === yellowBlock) {
             // Start dragging the selected object
             dragging = true;
-            // console.log('selected object: ', selectedObject.name);
+            raycaster.setFromCamera(mouse, camera);
+            const ZPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+            raycaster.ray.intersectPlane(ZPlane, originalIntersection);
+            originalPos = yellowBlock.position.z;
+        } else if (selectedObject === mirror) {
+            dragging = true;
+            raycaster.setFromCamera(mouse, camera);
+            const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+            raycaster.ray.intersectPlane(XPlane, originalIntersection);
+            originalPos = mirror.position.x;
         } else if (selectedObject === redBlock) {
             // Check if the red block can rotate
             let rotLim = rotationDirection === 1 ? redBlock.rotation.y < Math.PI - 0.01 : redBlock.rotation.y > 0.01;
@@ -399,6 +411,7 @@ function onMouseDown(event) {
                 totalRotation = 0;
                 targetRotation = rotationDirection * Math.PI / 2;
                 animationInProgress = true;
+                redBlock.state += rotationDirection;
             }
         }
     }
@@ -423,9 +436,10 @@ function onMouseMove(event) {
         // Use rayCaster to find intersection point on the plane
         intersectionPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(ZPlane, intersectionPoint);
+        const deltaZ = intersectionPoint.z - originalIntersection.z;
 
         // Align the yellow block to the Z-axis of the intersection point
-        yellowBlock.position.z = Math.max(Math.min(intersectionPoint.z - 4, -1), -5);
+        yellowBlock.position.z = Math.max(Math.min(originalPos + deltaZ, -1), -5);
     } else if (selectedObject === mirror) {
         // Create a plane for dragging along the X-axis
         const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -433,9 +447,10 @@ function onMouseMove(event) {
         // Use rayCaster to find intersection point on the plane
         intersectionPoint = new THREE.Vector3();
         raycaster.ray.intersectPlane(XPlane, intersectionPoint);
+        const deltaX = intersectionPoint.x - originalIntersection.x;
 
         // Move the mirror along the X-axis
-        mirror.position.x = Math.max(Math.min(intersectionPoint.x - 3, 3), -4);
+        mirror.position.x = Math.max(Math.min(originalPos + deltaX, 3), -4);
     }
 }
 
@@ -450,18 +465,16 @@ function onMouseUp() {
         // Snap the mirror to the nearest grid position
         mirror.position.x = Math.round(mirror.position.x);
     }
-    console.log("mirrorposition:", mirror.position.x);
-    console.log("yellowblockposition:", yellowBlock.position.z);
-    console.log("redblockposition:", redBlock.rotation.y);
-    if (yellowBlock.position.z === -1 && redBlock.rotation.y > 3){
-    goal1 = 1;
-    }
-    if(redBlock.rotation.y > 1.5 && redBlock.rotation.y <= 1.6 && mirror.position.x === -1){
-        goal2 = 1;
-    }
-    console.log("goal1:", goal1);
-    console.log("goal2:", goal2);
-
+    console.log("mirror position:", mirror.position.x);
+    console.log("yellow block position:", yellowBlock.position.z);
+    console.log("red block state:", redBlock.state);
 
     selectedObject = null;
 }
+
+// Handle window resizing
+window.addEventListener('resize', function () {
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+});

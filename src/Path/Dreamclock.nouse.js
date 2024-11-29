@@ -1,7 +1,7 @@
 // main.js
 import * as THREE from 'three';
 import { Reflector } from "three/examples/jsm/objects/Reflector.js";
-import Block from './Block.js';
+import Block from './Block.nouse.js';
 
 const container = document.getElementById('container');
 

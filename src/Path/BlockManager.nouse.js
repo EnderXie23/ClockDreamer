@@ -1,5 +1,5 @@
 // BlockManager.js
-import Block from './Block.js';
+import Block from './Block.nouse.js';
 import * as THREE from 'three';
 
 class BlockManager {
