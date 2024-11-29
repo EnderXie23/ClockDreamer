@@ -195,13 +195,13 @@ class Light {
         this.pointLight.position.y = this.y + Math.sin(time * this.frequency) * this.amplitude;
     }
 }
-
+let Lightshow = [1,1];
 // 创建一个点光源实例
 let lightPoint1 = new Light(
     -1, 1.5, 3,   // 位置
     `rgb(255, 246, 178)`, // 颜色（暖黄色）
     0.1,        // 光球大小
-    1,          // 显示
+    Lightshow[0],          // 显示
     0.1,          // 摆动幅度
     10           // 摆动频率
 );
@@ -209,7 +209,7 @@ let lightPoint2 = new Light(
     2, 1.5, -10,   // 位置
     `rgb(255, 246, 178)`, // 颜色（暖黄色）
     0.1,        // 光球大小
-    1,          // 显示
+    Lightshow[1],          // 显示
     0.1,          // 摆动幅度
     10           // 摆动频率
 );
@@ -227,65 +227,119 @@ scene.add(axesHelper);
 //     scene.add(model);
 // });
 
-class Model{
-    constructor(startX, startY, startZ, endX, endY, endZ, loadpath,scene){
+class Model {
+    constructor(startX, startY, startZ, loadpath, scene) {
         this.startX = startX;
         this.startY = startY;
         this.startZ = startZ;
-        this.endX = endX;
-        this.endY = endY;
-        this.endZ = endZ;
-        this.loadpath = loadpath;  // 模型加载路径
+        this.loadPath = loadpath;  // 模型加载路径
         this.model = null;  // 用于存储加载的模型
         this.isLoaded = false; // 模型加载标志
         this.isAnimating = false; // 动画状态标志
         this.animationStartTime = 0; // 动画开始时间
-        this.animationDuration = 2; // 动画持续时间（秒）
+        this.animationDuration = 0.5; // 增加动画持续时间，使动画更慢
         this.scene = scene;
         this.hasMoved = false; // 记录是否已移动，防止重复动画
+        this.animationStages = [
+            { target: new THREE.Vector3(-5.5, 0.2, 0), duration: 0.5 },  // 阶段1，增加时间
+            { target: new THREE.Vector3(-0.5, 0.2, 0), duration: 0.5 },  // 阶段2，增加时间
+            { target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5 }   // 阶段3，增加时间
+        ];
+        this.currentStage = 0; // 当前阶段
+        this.stageStartTime = 0; // 当前阶段开始时间
 
-        // // 使用GLTFLoader直接在构造函数中加载模型
-        // const loader = new THREE.GLTFLoader();
 
-        loader.load(this.loadpath, (gltf) => {
+        // 使用GLTFLoader加载模型
+        loader.load(this.loadPath, (gltf) => {
             this.model = gltf.scene;  // 获取加载后的模型
             this.model.position.set(this.startX, this.startY, this.startZ);  // 设置模型的初始位置
-            scene.add(this.model);  // 将模型添加到场景中
-
+            this.scene.add(this.model);  // 将模型添加到场景中
             this.isLoaded = true;  // 标记模型已加载
         }, undefined, (error) => {
             console.error("加载模型时出错", error);
         });
     }
+
+    // 动画方法
     animate() {
+        // 第一个动画 (goal1 == 1)
         if (goal1 === 1 && !this.isAnimating && this.isLoaded && !this.hasMoved) {
             this.isAnimating = true;  // 标记动画开始
-            this.animationStartTime = Date.now();  // 记录动画开始时间
+            this.stageStartTime = Date.now();  // 记录动画开始时间
         }
 
         // 如果正在进行动画
-        if (this.isAnimating) {
-            const elapsedTime = (Date.now() - this.animationStartTime) / 1000;  // 计算经过的时间（秒）
+        if (this.isAnimating && goal1 === 1) {
+            const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
+            const currentStage = this.animationStages[this.currentStage];
+            const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
 
-            // 计算模型的平滑过渡
-            const progress = Math.min(elapsedTime / this.animationDuration, 1);  // 确保动画时间不会超出范围
+            // 线性插值，平滑过渡
+            this.model.position.lerpVectors(
+                this.model.position,  // 当前的位置
+                currentStage.target,   // 目标位置
+                progress               // 进度
+            );
 
-            // 插值计算模型的当前位置
-            this.model.position.x = THREE.MathUtils.lerp(this.startX, this.endX, progress);
-            this.model.position.y = THREE.MathUtils.lerp(this.startY, this.endY, progress);
-            this.model.position.z = THREE.MathUtils.lerp(this.startZ, this.endZ, progress);
-
-            // 如果动画完成，重置动画标志
+            // 如果当前阶段的动画完成，切换到下一个阶段
             if (progress === 1) {
-                this.isAnimating = false;
-                this.hasMoved = true;
-                console.log("动画完成");
+                this.currentStage++;  // 进入下一个阶段
+                if (this.currentStage >= this.animationStages.length) {
+                    this.isAnimating = false;  // 所有阶段完成
+                    // this.hasMoved = true;  // 标记模型已经完成移动
+                    goal1 = 0;
+                    console.log("动画完成");
+                } else {
+                    // 更新动画开始时间，继续下一个阶段
+                    this.stageStartTime = Date.now();
+                }
+            }
+        }
+
+        // 第二个动画 (goal2 == 1)
+        if (goal2 === 1 && !this.isAnimating) {
+            this.isAnimating = true;  // 标记动画开始
+            this.stageStartTime = Date.now();  // 记录动画开始时间
+            this.animationStages = [ // 重置动画阶段为goal2的动画
+                { target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5 },  // 阶段1
+                { target: new THREE.Vector3(-0.5, 0.2, -6), duration: 0.5 },  // 阶段2
+                { target: new THREE.Vector3(1.7, 0.6, -6), duration: 0.5 }   // 阶段3
+            ];
+            this.currentStage = 0; // 重置为第一个阶段
+        }
+
+        // 如果正在进行动画
+        if (this.isAnimating && goal2 === 1) {
+            const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
+            const currentStage = this.animationStages[this.currentStage];
+            const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
+
+            // 线性插值，平滑过渡
+            this.model.position.lerpVectors(
+                this.model.position,  // 当前的位置
+                currentStage.target,   // 目标位置
+                progress               // 进度
+            );
+
+            // 如果当前阶段的动画完成，切换到下一个阶段
+            if (progress === 1) {
+                this.currentStage++;  // 进入下一个阶段
+                if (this.currentStage >= this.animationStages.length) {
+                    this.isAnimating = false;  // 所有阶段完成
+                    console.log("goal2 动画完成");
+                    goal2 = 0;
+                } else {
+                    // 更新动画开始时间，继续下一个阶段
+                    this.stageStartTime = Date.now();
+                }
             }
         }
     }
 }
-let model = new Model(-5.5, 0.2, 4, -5.5, 0.2, 0, 'data/objects/character/plant1.glb', scene);
 
+let model = new Model(-5.5, 0.2, 4,  'data/objects/character/plant1.glb', scene);
+// -0.5, 0.2, -6
+// 1.7, 0.6, -6
 function animate() {
 
     renderRotation();
@@ -401,6 +455,9 @@ function onMouseUp() {
     console.log("redblockposition:", redBlock.rotation.y);
     if (yellowBlock.position.z === -1 && redBlock.rotation.y > 3){
     goal1 = 1;
+    }
+    if(redBlock.rotation.y > 1.5 && redBlock.rotation.y <= 1.6 && mirror.position.x === -1){
+        goal2 = 1;
     }
     console.log("goal1:", goal1);
     console.log("goal2:", goal2);
