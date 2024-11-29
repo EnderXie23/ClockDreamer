@@ -201,12 +201,12 @@ function loadAllAssets() {
 }
 
 function resolveGameData() {
-    if (gameData.state !== "in game"){
+    if (gameData.state !== "in game" || gameData.gameMode !== 1){
         showMessage("Wrong game state", 2);
         setTimeout(()=>{
-            // window.location.href = "world.html";
+            window.location.href = "path.html";
         }, 1000);
-        // return new Error("Wrong game state");
+        return new Error("Wrong game state");
     }
 
     // Set difficulty level

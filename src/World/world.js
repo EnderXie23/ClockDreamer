@@ -152,7 +152,7 @@ function resolveGameData() {
         gameData = {
             level: 1,
             score: 0,
-            state: "none",
+            state: "world",
         };
         showMessage("Welcome to level " + gameData.level + "!");
         // 1: battle 2: cube game
@@ -168,10 +168,16 @@ function resolveGameData() {
             } else {
                 showMessage("Invalid game mode!", 2);
             }
+        } else if (gameData.state === "path"){
+            window.location.href = 'path.html';
         } else if (gameData.state === "win") {
-            showMessage("Welcome back! You have won the game!");
-        } else if (gameData.state === "none") {
-            showMessage("Welcome to level " + gameData.level + "!");
+            setTimeout(() => {
+                showMessage("Welcome back! You have won the game!");
+            }, 1000);
+        } else if (gameData.state === "world") {
+            setTimeout(() => {
+                showMessage("Welcome to level " + gameData.level + "!");
+            }, 1000);
         }
         if (!gameData.gameMode) {
             gameMode = Math.floor(Math.random() * 2) + 1;
@@ -752,8 +758,8 @@ function showStageHint() {
 
     // 设置提示框样式
     hintDiv.style.position = 'absolute';
-    hintDiv.style.top = '50%';
-    hintDiv.style.left = '50%';
+    hintDiv.style.bottom = '40%';
+    hintDiv.style.right = '20%';
     hintDiv.style.transform = 'translate(-50%, -50%)';
     hintDiv.style.padding = '20px 40px';
     hintDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -773,12 +779,12 @@ function showGameHint() {
     const hintDiv = document.getElementById('stageHint');
 
     // 创建提示框内容
-    hintDiv.innerHTML = 'Click the mouse to start';
+    hintDiv.innerHTML = (isMobile() ? 'Attack' : 'Click the mouse') + ' to start';
 
     // 设置提示框样式
     hintDiv.style.position = 'absolute';
-    hintDiv.style.top = '50%';
-    hintDiv.style.left = '50%';
+    hintDiv.style.bottom = '40%';
+    hintDiv.style.right = '20%';
     hintDiv.style.transform = 'translate(-50%, -50%)';
     hintDiv.style.padding = '20px 40px';
     hintDiv.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
@@ -913,9 +919,9 @@ document.addEventListener('keydown', (event) => {
     if (keys['f'] && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
-            gameData.state = "none";
+            gameData.state = "path";
             localStorage.setItem('gameData', JSON.stringify(gameData));
-            window.location.reload();
+            window.location.href = 'path.html';
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1001,9 +1007,9 @@ document.getElementById("attackButton").addEventListener("click", function (){
     if(gameData.state === "win"){
         if (player.position.distanceTo(gate.position) <= 4) {
             gameData.level += 1;
-            gameData.state = "none";
+            gameData.state = "path";
             localStorage.setItem('gameData', JSON.stringify(gameData));
-            window.location.reload();
+            window.location.href = 'path.html';
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1018,6 +1024,7 @@ document.addEventListener('touchmove', onTouchMove, false);
 document.addEventListener('touchend', onTouchEnd, false);
 
 function onTouchStart(event) {
+
     // Check if the touch position is in the joystick area
     const touchX = event.touches[event.touches.length - 1].pageX;
     const touchY = event.touches[event.touches.length - 1].pageY;
@@ -1082,6 +1089,28 @@ window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
+// document.addEventListener('click', () => {
+//     const element = document.documentElement;  // You can also target a specific element
+//
+//     // Check for standard fullscreen API first
+//     if (element.requestFullscreen) {
+//         element.requestFullscreen().catch((err) => {
+//             console.error("Fullscreen failed:", err);
+//         });
+//     }
+//     // Fallback for Safari (using the Webkit prefix)
+//     else if (element.webkitRequestFullscreen) {
+//         element.webkitRequestFullscreen().catch((err) => {
+//             console.error("Fullscreen failed:", err);
+//         });
+//     }
+//     // Fallback for other browsers
+//     else if (element.msRequestFullscreen) {
+//         element.msRequestFullscreen().catch((err) => {
+//             console.error("Fullscreen failed:", err);
+//         });
+//     }
+// });
 
 let isMobile = () => {
     const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);

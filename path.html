@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!--	&lt;!&ndash; <link rel="stylesheet" href="css/loader.css" /> &ndash;&gt;-->
+    <!--	<link rel="stylesheet" href="css/modal.css" />-->
+    <!--	<link rel="stylesheet" href="assets/css/main.css" />-->
+    <!--	<noscript><link rel="stylesheet" href="assets/css/noscript.css" /></noscript>-->
+
+    <script src="script/three.js"></script>
+    <script src="script/LegacyJSONLoader.js"></script>
+
+    <style>
+        body {
+            margin: 0px;
+            overflow: hidden;
+        }
+        .message-box {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            font-size: 16px;
+            opacity: 0;
+            z-index: 1;
+            pointer-events: none; /* Prevent clicks while hidden */
+            transition: opacity 0.5s ease;
+        }
+
+        .message-box.show {
+            opacity: 1;
+            pointer-events: auto;
+        }
+
+        .message-text {
+            margin: 0;
+        }
+    </style>
+</head>
+<body>
+<div id="messageBox" class="message-box">
+    <p id="messageText" class="message-text"></p>
+</div>
+<script src="src/Path/path.js" type="module"></script>
+</body>
+</html>
+

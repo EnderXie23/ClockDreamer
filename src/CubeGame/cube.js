@@ -115,9 +115,9 @@ function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 2) {
         showMessage("Wrong game state.", 2);
         setTimeout(() => {
-            // window.location.href = "world.html";
+            window.location.href = "path.html";
         }, 1000);
-        // return new Error("Wrong game state");
+        return new Error("Wrong game state");
     }
     if (!gameData.param) {
         gameData.param = 3;

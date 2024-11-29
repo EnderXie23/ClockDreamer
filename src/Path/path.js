@@ -2,36 +2,22 @@ import {data} from './data.js';
 import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader.js';
 import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
 import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
-import {DragControls} from 'three/examples/jsm/controls/DragControls.js';
 
-let scene;
-let renderer;
-let controls;
-let camera;
-let floorplan;
-let settings;
-let grid;
-let light;
-let monumentSquareSize;
-let monumentHeight;
-let ambient;
-let startingPosition;
-let clock = new THREE.Clock();
+let scene, renderer, controls, camera, ambient;
+let floorplan, settings, grid, light;
+let monumentSquareSize, monumentHeight;
+let litLightNum = 1, gameData;
 let progress = [];
 let pointLights = [];
 let pointLightsZ = [];
 let isBonus = false;
-let movableCube;
-let dragControls;
 let dragging = false;
 let selectedObject = null;
 
 const width = window.innerWidth;
 const height = window.innerHeight;
 const aspectRatio = width / height;
-const fieldOfView = 25;
-const nearView = 1;
-const farView = 10000;
+const fieldOfView = 25, nearView = 1, farView = 10000;
 const assetPath = 'data/objects/cell';
 const blockSize = 20;
 
@@ -367,7 +353,7 @@ let blockOnCursor;
 let upDown = true;
 
 // ========== RESIZE ==========
-export function resizeListener() {
+function resizeListener() {
     window.addEventListener('resize', () => {
         camera.aspect = window.innerWidth / window.innerHeight;
         camera.updateProjectionMatrix();
@@ -375,25 +361,52 @@ export function resizeListener() {
     }, false);
 }
 
+function loadData(key) {
+    // Load data from localStroage
+    return new Promise((resolve) => {
+        let data = JSON.parse(localStorage.getItem(key));
+        if (data) {
+            console.log("Data found in localStorage: ", data);
+            resolve(data);
+        } else {
+            console.log('No data found in localStorage. Return null.')
+            resolve(null);
+        }
+    });
+}
+
 // ========== ON LOAD ==========
-async function loadListener() {
+async function loadGame() {
     window.addEventListener('load', async () => {
         settings = data.settings;
         document.body.style.background = `rgb(${settings.background})`;
         floorplan = data.floorplan;
         await initGame()
-            .then(scene.add(progress.shift()))
+            .then(() => {
+                const keys = ['gameData'];
+                const dataPromises = keys.map((key) => loadData(key));
+
+                Promise.all(dataPromises).then((values) => {
+                    gameData = values[0] ? values[0] : {level: 1, score: 0, state: "path"};
+                    if(gameData.state !== "path")
+                        window.location.href = "world.html";
+
+                    litLightNum = Math.min(gameData.level, 4);
+                    for(let i = 0; i < litLightNum; i++)
+                        scene.add(progress.shift());
+                })
+            })
             .then(await loadCharacter(scene)
                 .then(() => {
                     // limit frame rate based on the settings
                     fpsInterval = 1000 / settings.frameRate;
                     then = Date.now();
                     startTime = then;
-                    animate();
                 }))
             .then(() => {
-                let loadingDiv = document.getElementById('loading');
-                loadingDiv.parentNode.removeChild(loadingDiv);
+                animate();
+                // let loadingDiv = document.getElementById('loading');
+                // loadingDiv.parentNode.removeChild(loadingDiv);
             });
     });
 
@@ -402,45 +415,45 @@ async function loadListener() {
         -(Math.floor(data.floorplan[0].length / 2) * blockSize),
         (Math.ceil(data.floorplan.length / 2) * blockSize)
     );
+}
 
-    const animate = () => {
-        requestAnimationFrame(animate);
-        now = Date.now();
-        elapsed = now - then;
-        if (elapsed > fpsInterval) {
-            then = now - (elapsed % fpsInterval);
+function animate() {
+    requestAnimationFrame(animate);
+    now = Date.now();
+    elapsed = now - then;
+    if (elapsed > fpsInterval) {
+        then = now - (elapsed % fpsInterval);
 
-            // gravity action
-            applyGravity();
-            // character behaviour
-            applyMovement();
+        // gravity action
+        applyGravity();
+        // character behaviour
+        applyMovement();
 
-            // render
-            if (controls) controls.update();
-            renderer.render(scene, camera);
+        // render
+        if (controls) controls.update();
+        renderer.render(scene, camera);
 
-            pointLights.forEach((each) => {
-                pointLightsZ.push(each.position.z);
-            });
+        pointLights.forEach((each) => {
+            pointLightsZ.push(each.position.z);
+        });
 
-            for (let i = 0; i < pointLights.length; i++) {
-                if (pointLights[i].position.z >= pointLightsZ[i] + 4) {
-                    upDown = false;
-                } else if (pointLights[i].position.z <= pointLightsZ[i] - 4) {
-                    upDown = true;
-                }
+        for (let i = 0; i < pointLights.length; i++) {
+            if (pointLights[i].position.z >= pointLightsZ[i] + 4) {
+                upDown = false;
+            } else if (pointLights[i].position.z <= pointLightsZ[i] - 4) {
+                upDown = true;
+            }
 
-                if (upDown) {
-                    pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] + 15), 0.02);
-                } else {
-                    pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] - 15), 0.02);
-                }
+            if (upDown) {
+                pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] + 15), 0.02);
+            } else {
+                pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] - 15), 0.02);
             }
         }
     }
 }
 
-let loadBonusListener = async () => {
+async function loadBonus() {
     isBonus = true;
     window.addEventListener('load', async () => {
         settings = data.settings;
@@ -464,41 +477,6 @@ let loadBonusListener = async () => {
         -(Math.floor(data.floorplan[0].length / 2) * blockSize),
         (Math.ceil(data.floorplan.length / 2) * blockSize)
     );
-
-    const animate = () => {
-        requestAnimationFrame(animate);
-        now = Date.now();
-        elapsed = now - then;
-        if (elapsed > fpsInterval) {
-            then = now - (elapsed % fpsInterval);
-
-            // gravity action
-            applyGravity();
-            // character behaviour
-            applyMovement();
-
-            // render
-            if (controls) controls.update();
-            renderer.render(scene, camera);
-
-            pointLights.forEach((each) => {
-                pointLightsZ.push(each.position.z);
-            });
-
-            for (let i = 0; i < pointLights.length; i++) {
-                if (pointLights[i].position.z >= pointLightsZ[i] + 4) {
-                    upDown = false;
-                } else if (pointLights[i].position.z <= pointLightsZ[i] - 4) {
-                    upDown = true;
-                }
-                if (upDown) {
-                    pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] + 15), 0.02);
-                } else {
-                    pointLights[i].position.lerp(new THREE.Vector3(pointLights[i].position.x, pointLights[i].position.y, pointLightsZ[i] - 15), 0.02);
-                }
-            }
-        }
-    }
 }
 
 async function loadCharacter(scene) {
@@ -572,22 +550,41 @@ let applyMovement = async () => {
 
     // 保留进度触发逻辑
     if (currentPos.x === INTRO.x && currentPos.y === INTRO.y) {
-        if (progress.length === 3) {
-            scene.add(progress.shift()); // 触发下一个点亮
+        if (litLightNum === 1) {
+            // scene.add(progress.shift()); // 触发下一个点亮
+            enterLight();
+        } else {
+            showMessage("You have already visited this place!")
         }
     } else if (currentPos.x === PORTFOLIO.x && currentPos.y === PORTFOLIO.y) {
-        if (progress.length === 2) {
-            scene.add(progress.shift()); // 触发下一个点亮
+        if (litLightNum === 2) {
+            // scene.add(progress.shift()); // 触发下一个点亮
+            enterLight();
+        } else {
+            showMessage("You have already visited this place!")
         }
     } else if (currentPos.x === CONTACT.x && currentPos.y === CONTACT.y) {
-        if (progress.length === 1) {
-            scene.add(progress.shift()); // 触发下一个点亮
+        if (litLightNum === 3) {
+            // scene.add(progress.shift()); // 触发下一个点亮
+            enterLight();
+        } else {
+            showMessage("You have already visited this place!")
         }
     } else if (currentPos.x === BONUS.x && currentPos.y === BONUS.y) {
         // 到达最后一个点，完成游戏
         // isMoving = false; // 停止移动
-        console.log("Game completed!"); // 记录完成
-        // return; // 停止进一步处理
+        // console.log("Game completed!"); // 记录完成
+        gameData = {
+            level: 1,
+            score: 0,
+            state: "path",
+        }
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        showMessage("Congratulations! You have completed the game!");
+        setTimeout(() => {
+            window.location.href = "index.html";
+        }, 1000);
+
     }
 
     if (isMoving) {
@@ -615,6 +612,40 @@ let applyMovement = async () => {
             }
         }
     }
+}
+
+function enterLight() {
+    const updateData = {
+        level: litLightNum,
+        score: (gameData.score || 0) + 500,
+        state: "world",
+        gameMode: litLightNum % 2 + 1,
+    }
+
+    localStorage.setItem('gameData', JSON.stringify(updateData));
+    console.log("Game data updated: ", updateData);
+
+    window.location.href = "world.html";
+}
+
+function showMessage(message, mode = 1) {
+    const messageBox = document.getElementById('messageBox');
+    const messageText = document.getElementById('messageText');
+
+    // Set the message text dynamically
+    messageText.innerHTML = message;
+    messageBox.classList.add('show');
+    if (mode === 2) {
+        messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
+    } else {
+        messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    }
+
+
+    // Optional: Hide the message after a delay (e.g., 3 seconds)
+    setTimeout(() => {
+        messageBox.classList.remove('show');
+    }, 2000);  // Message disappears after 3 seconds
 }
 
 // BFS pathfinding
@@ -805,4 +836,4 @@ let isMobile = () => {
 }
 
 // ========== GAME ENTRY ==========
-loadListener();
+loadGame();
