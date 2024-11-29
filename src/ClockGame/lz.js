@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-import TWEEN from '@tweenjs/tween.js';
 import {Reflector} from "three/examples/jsm/objects/Reflector.js";
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
@@ -109,23 +108,12 @@ function renderRotation() {
 
 
 // Main scene render loop
-function animate() {
-    renderRotation();
-    lightPoint1.animate();
-    lightPoint2.animate();
-    renderer.render(scene, camera);
 
-    requestAnimationFrame(animate);
-    if (needs_log) {
-        // Put the log here
-
-    }
-}
 
 function createTrail() {
     // Create a simple 3D trail using box geometries
     const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
-    const trailLength = 5;
+
     const trailWidth = 1;
     const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
 
@@ -230,29 +218,89 @@ let lightPoint2 = new Light(
 const axesHelper = new THREE.AxesHelper(5); // The number '5' is the size of the axes
 scene.add(axesHelper);
 // Objects and main character
-// Load the .glb model using GLTFLoader
-let model = null;
-loader.load('data/objects/character/plant1.glb', function (gltf) {
-    // Add the loaded model to the scene
-    const model = gltf.scene;
 
-    // Set the position of the model
-    model.position.set(-5.5, 0.2, 4);
-    // model.position.set(-5.5, 0.2, 0);
-    // model.position.set(-0.5, 0.2, 0);
-    // model.position.set(-0.5, 0.6, 4);
+// Assume you already loaded the model and set up the scene
+// let model = null; // The model object
+// loader.load('data/objects/character/plant1.glb', function (gltf) {
+//     model = gltf.scene;
+//     model.position.set(-5.5, 0.2, 4); // Initial position
+//     scene.add(model);
+// });
+
+class Model{
+    constructor(startX, startY, startZ, endX, endY, endZ, loadpath,scene){
+        this.startX = startX;
+        this.startY = startY;
+        this.startZ = startZ;
+        this.endX = endX;
+        this.endY = endY;
+        this.endZ = endZ;
+        this.loadpath = loadpath;  // 模型加载路径
+        this.model = null;  // 用于存储加载的模型
+        this.isLoaded = false; // 模型加载标志
+        this.isAnimating = false; // 动画状态标志
+        this.animationStartTime = 0; // 动画开始时间
+        this.animationDuration = 2; // 动画持续时间（秒）
+        this.scene = scene;
+        this.hasMoved = false; // 记录是否已移动，防止重复动画
+
+        // // 使用GLTFLoader直接在构造函数中加载模型
+        // const loader = new THREE.GLTFLoader();
+
+        loader.load(this.loadpath, (gltf) => {
+            this.model = gltf.scene;  // 获取加载后的模型
+            this.model.position.set(this.startX, this.startY, this.startZ);  // 设置模型的初始位置
+            scene.add(this.model);  // 将模型添加到场景中
+
+            this.isLoaded = true;  // 标记模型已加载
+        }, undefined, (error) => {
+            console.error("加载模型时出错", error);
+        });
+    }
+    animate() {
+        if (goal1 === 1 && !this.isAnimating && this.isLoaded && !this.hasMoved) {
+            this.isAnimating = true;  // 标记动画开始
+            this.animationStartTime = Date.now();  // 记录动画开始时间
+        }
+
+        // 如果正在进行动画
+        if (this.isAnimating) {
+            const elapsedTime = (Date.now() - this.animationStartTime) / 1000;  // 计算经过的时间（秒）
+
+            // 计算模型的平滑过渡
+            const progress = Math.min(elapsedTime / this.animationDuration, 1);  // 确保动画时间不会超出范围
+
+            // 插值计算模型的当前位置
+            this.model.position.x = THREE.MathUtils.lerp(this.startX, this.endX, progress);
+            this.model.position.y = THREE.MathUtils.lerp(this.startY, this.endY, progress);
+            this.model.position.z = THREE.MathUtils.lerp(this.startZ, this.endZ, progress);
+
+            // 如果动画完成，重置动画标志
+            if (progress === 1) {
+                this.isAnimating = false;
+                this.hasMoved = true;
+                console.log("动画完成");
+            }
+        }
+    }
+}
+let model = new Model(-5.5, 0.2, 4, -5.5, 0.2, 0, 'data/objects/character/plant1.glb', scene);
+
+function animate() {
+
+    renderRotation();
+    lightPoint1.animate();
+    lightPoint2.animate();
+    model.animate();
+    renderer.render(scene, camera);
 
 
-    scene.add(model);
-    moveModel();
-    // Optionally, scale or rotate the model
-    // model.scale.set(1, 1, 1); // scale the model
-    // model.rotation.x = Math.PI / 2; // rotate the model if needed
-}, undefined, function (error) {
-    console.error('Error loading model:', error);
-});
+    requestAnimationFrame(animate);
+    if (needs_log) {
+        // Put the log here
 
-
+    }
+}
 createTrail();
 animate();
 
