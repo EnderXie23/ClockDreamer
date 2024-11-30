@@ -6,7 +6,6 @@ import {Water} from "three/examples/jsm/objects/Water.js";
 import {Sky} from "three/examples/jsm/objects/Sky.js";
 import nipplejs from "nipplejs";
 import Stats from "three/examples/jsm/libs/stats.module.js";
-import {Euler} from "three";
 
 // All global variables
 // Basic setup
@@ -14,7 +13,7 @@ let camera, scene, renderer, controls, stats, zoom = 1;
 let building, fences, player, target, gate, water, sky, sun;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
-let gameData, playerData, gameMode;
+let gameData, playerData, positionData, gameMode;
 
 // Player upgrade
 let selectedPlayerIndex = 0;
@@ -107,7 +106,7 @@ function loadAllAssets() {
         'data/textures/waternormals.png'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb',
         'data/models/gate.glb', "data/models/gate_off.glb"];
-    const dataKeys = ['gameData', 'playerData']
+    const dataKeys = ['gameData', 'playerData', 'positionData'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
     const modelPromises = modelURLs.map(url => loadModel(url));
@@ -122,6 +121,7 @@ function loadAllAssets() {
                 texturePromises.length + modelPromises.length + gameDataPromise.length);
             gameData = loadedData[0];
             playerData = loadedData[1];
+            positionData = loadedData[2];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
@@ -238,11 +238,13 @@ function init() {
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(10, 0, 0);
-    camera.lookAt(0, 0, 0); // Point the camera at the origin
-
-    // Translate camera
-    const translationMatrix = new THREE.Matrix4().makeTranslation(0, 1.5, 0);
-    camera.applyMatrix4(translationMatrix);
+    if(positionData){
+        camera.position.set(positionData.camera[0], positionData.camera[1], positionData.camera[2]);
+        camera.rotation.set(positionData.cameraRot[0], positionData.cameraRot[1], positionData.cameraRot[2]);
+        camera.rotation.order = positionData.cameraRot[3];
+    }
+    scene.add(camera);
+    // camera.lookAt(0, 0, 0); // Point the camera at the origin
 
     // Create renderer
     const container = document.getElementById('container');
@@ -396,6 +398,9 @@ function placeLayout() {
     player = loadedModels[0];
     player.scale.set(1.4, 1.4, 1.4);
     player.position.set(9, groundLevel, 1);
+    if(positionData){
+        player.position.set(positionData.player[0], positionData.player[1], positionData.player[2]);
+    }
     player.castShadow = true;
     player.receiveShadow = true;
     scene.add(player);
@@ -822,6 +827,14 @@ function tryAttack() {
         localStorage.setItem('gameData', JSON.stringify(updateData));
         console.log("Storing game data in localStorage: ", updateData);
 
+        const positionData = {
+            player: [player.position.x, player.position.y, player.position.z],
+            camera: [camera.position.x, camera.position.y, camera.position.z],
+            cameraRot: [camera.rotation.x, camera.rotation.y, camera.rotation.z, camera.rotation.order],
+        }
+        localStorage.setItem('positionData', JSON.stringify(positionData));
+        console.log("Storing position data in localStorage: ", positionData);
+
         animateAttack(player, building);
         setTimeout(() => {
             if (gameMode === 1)
@@ -927,7 +940,9 @@ document.addEventListener('keydown', (event) => {
         }
     }
     if (keys['t']) {
-        console.log(player.rotation.clone())
+        const _euler = new Euler( 0, 0, 0, 'YXZ' );
+        _euler.setFromQuaternion( camera.quaternion );
+        console.log(_euler);
     }
     if (keys['e']) {
         handlePanel();
@@ -1024,7 +1039,6 @@ document.addEventListener('touchmove', onTouchMove, false);
 document.addEventListener('touchend', onTouchEnd, false);
 
 function onTouchStart(event) {
-
     // Check if the touch position is in the joystick area
     const touchX = event.touches[event.touches.length - 1].pageX;
     const touchY = event.touches[event.touches.length - 1].pageY;

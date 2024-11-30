@@ -621,9 +621,9 @@ function enterLight() {
         state: "world",
         gameMode: litLightNum % 2 + 1,
     }
-
     localStorage.setItem('gameData', JSON.stringify(updateData));
     console.log("Game data updated: ", updateData);
+    localStorage.removeItem('positionData');
 
     window.location.href = "world.html";
 }

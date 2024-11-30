@@ -38,6 +38,7 @@ let data = {
     mirror: {
         position: [0, 0, -6],
         clip: [-4, 3],
+        goalStates: [999, -1],
     },
     lights: [
         {
@@ -267,6 +268,7 @@ function init(){
         color: 0xc1cbcb
     });
     mirror.position.set(data.mirror.position[0], data.mirror.position[1], data.mirror.position[2]);
+    mirror.goalStates = data.mirror.goalStates;
     mirror.material.transparent = true;
     mirror.material.opacity = 0.9;
     scene.add(mirror);
@@ -433,6 +435,10 @@ function handleGoals() {
             flag = false;
         }
     });
+
+    if (mirror.position.x !== mirror.goalStates[goalInd] && mirror.goalStates[goalInd] !== 999) {
+        flag = false;
+    }
 
     goals[goalInd] = flag ? 1 : 0;
 }
