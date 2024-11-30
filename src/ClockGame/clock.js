@@ -3,80 +3,65 @@ import {Reflector} from "three/examples/jsm/objects/Reflector.js";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
-const container = document.getElementById('container');
-// Renderer
-const renderer = new THREE.WebGLRenderer({antiAlias: true});
-renderer.setPixelRatio(window.devicePixelRatio);
-renderer.setSize(window.innerWidth, window.innerHeight);
-container.appendChild(renderer.domElement);
 
-// Create scene
-let scene = new THREE.Scene();
-
-// Create camera
-const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
-camera.position.set(1, 1, 10);
-
-// Rotate camera
-const angleY = THREE.MathUtils.degToRad(-30);
-const rotationMatrixY = new THREE.Matrix4().makeRotationY(-angleY); // Apply negative angle for clockwise rotation
-camera.applyMatrix4(rotationMatrixY); // Apply the rotation to the camera
-const angleX = THREE.MathUtils.degToRad(40);
-const rotationMatrixX = new THREE.Matrix4().makeRotationX(-angleX);
-camera.applyMatrix4(rotationMatrixX);
-camera.lookAt(0, 0, 0); // Point the camera at the origin
-
-// Translate camera
-const translationMatrix = new THREE.Matrix4().makeTranslation(2, 3.5, 0);
-camera.applyMatrix4(translationMatrix);
-
-// Load texture for background
-scene.background = new THREE.Color(0xD2B48C);
-
-// goalstage for each step
-let goal1 = 0;
-let goal2 = 0;
-
-// Create blocks
-const blockMaterialYellow = new THREE.MeshBasicMaterial({color: 0xFFB432});
-const blockMaterialRed = new THREE.MeshBasicMaterial({color: 0xFF6432});
-
-// Yellow block
-const yellowBlockGeometry = new THREE.BoxGeometry(1, 1, 4);
-yellowBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(0, 0, 0.5));
-const yellowBlock = new THREE.Mesh(yellowBlockGeometry, blockMaterialYellow);
-yellowBlock.position.set(-7, 0, -3);
-scene.add(yellowBlock);
-
-// Red block
-const redBlockGeometry = new THREE.BoxGeometry(6, 1, 1);
-redBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(2.5, 0, 0));
-const redBlock = new THREE.Mesh(redBlockGeometry, blockMaterialRed);
-redBlock.position.set(-1, 0, -2);
-redBlock.state = 0;
-scene.add(redBlock);
-
-// Create mirror
-const mirrorWidth = 5;
-const mirrorHeight = 8;
-let geometry = new THREE.PlaneGeometry(mirrorWidth, mirrorHeight);
-let mirror = new Reflector(geometry, {
-    clipBias: 0.003,
-    textureWidth: window.innerWidth * window.devicePixelRatio,
-    textureHeight: window.innerHeight * window.devicePixelRatio,
-    color: 0xc1cbcb
-});
-mirror.position.set(0, 0, -6);
-scene.add(mirror);
+let renderer, scene, camera;
+let destinations = [[2.0, 0.7, -10], [-1, 0.7, 3]];
+let mirror, dragObj = [], spinObj = [];
 
 // Layer configuration
 const MAIN_LAYER = 0;
 const NO_REF_LAYER = 1; // No reflection layer
 
-yellowBlock.layers.set(MAIN_LAYER);
-redBlock.layers.set(MAIN_LAYER);
-mirror.layers.set(MAIN_LAYER);
-camera.layers.enable(NO_REF_LAYER);
+// goalstage for each step
+let goals = [0, 0];
+let lights = [], model;
+
+let data = {
+    dragObj: [
+        {
+            shape: [{x: 0, y: 0, z: 0}, {x: 0, y: 0, z: 1}, {x: 0, y: 0, z: 2}, {x: 0, y: 0, z: 3}],
+            position: [-7, 0, -3],
+            axis: 'z',
+            clip: [-6, -2],
+            goalPositions: [-2, 999]
+        },
+    ],
+    spinObj: [
+        {
+            shape: [{x: 0, y: 0, z: 0}, {x: 1, y: 0, z: 0}, {x: 2, y: 0, z: 0}, {x: 3, y: 0, z: 0}, {x: 4, y: 0, z: 0}, {x: 5, y: 0, z: 0}],
+            position: [-1, 0, -2],
+            state: 0,
+            clip: [1, 1],
+            goalStates: [2, 1]
+        }
+    ],
+    mirror: {
+        position: [0, 0, -6],
+        clip: [-4, 3],
+    },
+    lights: [
+        {
+            position: [-1, 1.5, 3],
+            color: `rgb(255, 246, 178)`,
+            show: 0,
+            size: 0.1,
+            amplitude: 0.1,
+            frequency: 10
+        },
+        {
+            position: [2, 1.5, -10],
+            color: `rgb(255, 246, 178)`,
+            show: 0,
+            size: 0.1,
+            amplitude: 0.1,
+            frequency: 10
+        }
+    ],
+    model: {
+        position: [-5.5, 0.2, 4],
+        loadPath: 'data/objects/character/plant1.glb'
+    }
+}
 
 // Global variables for animation
 let animationInProgress = false;
@@ -85,10 +70,12 @@ let targetRotation = 0;
 let rotationDirection = 1;
 let dragging = false;
 let selectedObject = null;
-let needs_log = true;
 
-mirror.material.transparent = true;
-mirror.material.opacity = 0.9;
+// Create Raycaster and mouse vector
+const raycaster = new THREE.Raycaster();
+const mouse = new THREE.Vector2();
+let originalIntersection = new THREE.Vector3();
+let originalPos;
 
 class Light {
     constructor(x, y, z, color, size = 0, show = 1, amplitude = 10, frequency = 3) {
@@ -117,46 +104,18 @@ class Light {
         // 设置光源位置
         this.pointLight.position.set(this.x, this.y, this.z);
         this.pointLight.castShadow = true;
-
-        // 添加到场景
-        if (this.show) {
-            scene.add(this.pointLight);
-        }
+        scene.add(this.pointLight);
     }
 
     // 定义光源的动画效果
     animate() {
+        this.pointLight.visible = !!this.show;
         let time = Date.now() * 0.0005;
         // 使用 Math.sin 来控制上下摆动
         this.pointLight.position.y = this.y + Math.sin(time * this.frequency) * this.amplitude;
     }
 }
 
-let Lightshow = [1, 1];
-// 创建一个点光源实例
-let lightPoint1 = new Light(
-    -1, 1.5, 3,   // 位置
-    `rgb(255, 246, 178)`, // 颜色（暖黄色）
-    0.1,        // 光球大小
-    Lightshow[0],          // 显示
-    0.1,          // 摆动幅度
-    10           // 摆动频率
-);
-let lightPoint2 = new Light(
-    2, 1.5, -10,   // 位置
-    `rgb(255, 246, 178)`, // 颜色（暖黄色）
-    0.1,        // 光球大小
-    Lightshow[1],          // 显示
-    0.1,          // 摆动幅度
-    10           // 摆动频率
-);
-
-// Create a helper for displaying the coordinate axes
-const axesHelper = new THREE.AxesHelper(5); // The number '5' is the size of the axes
-axesHelper.visible = false;
-scene.add(axesHelper);
-
-// Objects and main character
 class Model {
     constructor(startX, startY, startZ, loadpath, scene) {
         this.startX = startX;
@@ -192,13 +151,14 @@ class Model {
     // 动画方法
     animate() {
         // 第一个动画 (goal1 == 1)
-        if (goal1 === 1 && !this.isAnimating && this.isLoaded) {
+        if (goals[0] === 1 && !this.isAnimating && this.isLoaded) {
+            animationInProgress = true;
             this.isAnimating = true;  // 标记动画开始
             this.stageStartTime = Date.now();  // 记录动画开始时间
         }
 
         // 如果正在进行动画
-        if (this.isAnimating && goal1 === 1) {
+        if (this.isAnimating && goals[0] === 1) {
             const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
             const currentStage = this.animationStages[this.currentStage];
             const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
@@ -215,8 +175,9 @@ class Model {
                 this.currentStage++;  // 进入下一个阶段
                 if (this.currentStage >= this.animationStages.length) {
                     this.isAnimating = false;  // 所有阶段完成
-                    goal1 = 2;
-                    console.log("动画完成");
+                    goals[0] = 2;
+                    lights[0].show = 1;
+                    animationInProgress = false;
                 } else {
                     // 更新动画开始时间，继续下一个阶段
                     this.stageStartTime = Date.now();
@@ -225,7 +186,8 @@ class Model {
         }
 
         // 第二个动画 (goal2 == 1)
-        if (goal2 === 1 && !this.isAnimating) {
+        if (goals[1] === 1 && !this.isAnimating) {
+            animationInProgress = true;
             this.isAnimating = true;  // 标记动画开始
             this.stageStartTime = Date.now();  // 记录动画开始时间
             this.animationStages = [ // 重置动画阶段为goal2的动画
@@ -237,7 +199,7 @@ class Model {
         }
 
         // 如果正在进行动画
-        if (this.isAnimating && goal2 === 1) {
+        if (this.isAnimating && goals[1] === 1) {
             const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
             const currentStage = this.animationStages[this.currentStage];
             const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
@@ -254,8 +216,9 @@ class Model {
                 this.currentStage++;  // 进入下一个阶段
                 if (this.currentStage >= this.animationStages.length) {
                     this.isAnimating = false;  // 所有阶段完成
-                    console.log("goal2 动画完成");
-                    goal2 = 2;
+                    goals[1] = 2;
+                    lights[1].show = 1;
+                    animationInProgress = false;
                 } else {
                     // 更新动画开始时间，继续下一个阶段
                     this.stageStartTime = Date.now();
@@ -265,25 +228,117 @@ class Model {
     }
 }
 
-let model = new Model(-5.5, 0.2, 4, 'data/objects/character/plant1.glb', scene);
-// -0.5, 0.2, -6
-// 1.7, 0.6, -6
+function init(){
+    const container = document.getElementById('container');
+    // Renderer
+    renderer = new THREE.WebGLRenderer({antiAlias: true});
+    renderer.setPixelRatio(window.devicePixelRatio);
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    container.appendChild(renderer.domElement);
+
+    // Create scene
+    scene = new THREE.Scene();
+    // Load texture for background
+    scene.background = new THREE.Color(0xD2B48C);
+
+    // Create camera
+    camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+    camera.position.set(1, 1, 10);
+    // Rotate camera
+    const angleY = THREE.MathUtils.degToRad(-30);
+    const rotationMatrixY = new THREE.Matrix4().makeRotationY(-angleY); // Apply negative angle for clockwise rotation
+    camera.applyMatrix4(rotationMatrixY); // Apply the rotation to the camera
+    const angleX = THREE.MathUtils.degToRad(40);
+    const rotationMatrixX = new THREE.Matrix4().makeRotationX(-angleX);
+    camera.applyMatrix4(rotationMatrixX);
+    camera.lookAt(0, 0, 0); // Point the camera at the origin
+    // Translate camera
+    const translationMatrix = new THREE.Matrix4().makeTranslation(2, 3.5, 0);
+    camera.applyMatrix4(translationMatrix);
+
+    // Create mirror
+    const mirrorWidth = 5;
+    const mirrorHeight = 8;
+    let geometry = new THREE.PlaneGeometry(mirrorWidth, mirrorHeight);
+    mirror = new Reflector(geometry, {
+        clipBias: 0.003,
+        textureWidth: window.innerWidth * window.devicePixelRatio,
+        textureHeight: window.innerHeight * window.devicePixelRatio,
+        color: 0xc1cbcb
+    });
+    mirror.position.set(data.mirror.position[0], data.mirror.position[1], data.mirror.position[2]);
+    mirror.material.transparent = true;
+    mirror.material.opacity = 0.9;
+    scene.add(mirror);
+
+    // Create blocks
+    const blockMaterialDrag = new THREE.MeshBasicMaterial({color: 0xFFB432});
+    const blockMaterialSpin = new THREE.MeshBasicMaterial({color: 0xFF6432});
+
+    // Draggable block
+    data.dragObj.forEach(obj => {
+        const dragGroup = new THREE.Group();
+        const dragObjGeometry = new THREE.BoxGeometry(1, 1, 1);
+        obj.shape.forEach(shape => {
+            const block = new THREE.Mesh(dragObjGeometry, blockMaterialDrag);
+            block.position.set(shape.x, shape.y, shape.z);
+            dragGroup.add(block);
+        });
+        dragGroup.position.set(obj.position[0], obj.position[1], obj.position[2]);
+        dragGroup.axis = obj.axis;
+        dragGroup.clip = obj.clip;
+        dragGroup.goalPositions = obj.goalPositions;
+        scene.add(dragGroup);
+        dragObj.push(dragGroup);
+    });
+
+    // Spinning block
+    data.spinObj.forEach(obj => {
+        const spinGroup = new THREE.Group();
+        const spinObjGeometry = new THREE.BoxGeometry(1, 1, 1);
+        obj.shape.forEach(shape => {
+            const block = new THREE.Mesh(spinObjGeometry, blockMaterialSpin);
+            block.position.set(shape.x, shape.y, shape.z);
+            spinGroup.add(block);
+        });
+        spinGroup.state = obj.state;
+        spinGroup.clip = obj.clip;
+        spinGroup.goalStates = obj.goalStates;
+        spinGroup.position.set(obj.position[0], obj.position[1], obj.position[2]);
+        scene.add(spinGroup);
+        spinObj.push(spinGroup);
+    });
+
+    dragObj.forEach(obj => obj.layers.set(MAIN_LAYER));
+    spinObj.forEach(obj => obj.layers.set(MAIN_LAYER));
+    mirror.layers.set(MAIN_LAYER);
+    camera.layers.enable(NO_REF_LAYER);
+
+    data.lights.forEach(light => {
+        let lightPoint = new Light(
+            light.position[0], light.position[1], light.position[2],   // 位置
+            light.color, // 颜色（暖黄色）
+            light.size,        // 光球大小
+            light.show,          // 显示
+            light.amplitude,          // 摆动幅度
+            light.frequency           // 摆动频率
+        );
+        lights.push(lightPoint);
+    })
+
+    model = new Model(data.model.position[0], data.model.position[1], data.model.position[2], data.model.loadPath, scene);
+}
+
 function animate() {
-    renderRotation();
     handleGoals();
-    lightPoint1.animate();
-    lightPoint2.animate();
+    lights.forEach(light => light.animate());
     model.animate();
     renderer.render(scene, camera);
 
     requestAnimationFrame(animate);
-    if (needs_log) {
-        // Put the log here
-
-    }
 }
 
-function renderRotation() {
+function renderRotation(ind) {
     let rotationSpeed = Math.PI / 60;
     if (targetRotation < 0) {
         rotationSpeed *= -1;
@@ -292,20 +347,21 @@ function renderRotation() {
     // rotate till target
     if (animationInProgress) {
         if (totalRotation < Math.abs(targetRotation)) {
-            redBlock.rotation.y += rotationSpeed;
+            spinObj[ind].rotation.y += rotationSpeed;
             totalRotation += Math.abs(rotationSpeed);
-        } else {
+        } else if (!model.isAnimating) {
             animationInProgress = false;
+            return;
         }
     }
+
+    requestAnimationFrame(renderRotation.bind(this, ind));
 }
 
 function createTrail() {
     // Create a simple 3D trail using box geometries
     const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
-
     const trailWidth = 1;
-    const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
 
     // Create multiple segments to represent the trail
     for (let i = 0; i < 5; i++) {
@@ -316,12 +372,6 @@ function createTrail() {
         trailSegment.position.set(-1, 0, 3 - i);  // Spread segments along the Z axis
         trailSegment.layers.set(NO_REF_LAYER);
         scene.add(trailSegment);
-        if (i === 0) {
-            const destination1 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), destinationMaterial);
-            destination1.position.set(-1, 0.7, 3 - i);
-            scene.add(destination1);
-            destination1.layers.set(NO_REF_LAYER);
-        }
     }
 
     for (let i = 0; i < 2; i++) {
@@ -333,31 +383,61 @@ function createTrail() {
         scene.add(trailSegment);
         trailSegment.layers.set(NO_REF_LAYER);
     }
-    const blueBlockGeometry = new THREE.BoxGeometry(4, 1, 1);
-    // blueBlockGeometry.applyMatrix4(new THREE.Matrix4().makeTranslation(1.5, 0, 0));
-    const blueBlock = new THREE.Mesh(blueBlockGeometry, trailMaterial);
-    blueBlock.position.set(0.5, 0, -10);
-    scene.add(blueBlock);
-    const destination2 = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.1, 0.8), destinationMaterial);
-    destination2.position.set(2.0, 0.7, -10);
-    scene.add(destination2);
-    destination2.layers.set(NO_REF_LAYER);
+
+    for (let i = 0; i < 4; i++) {
+        const trailSegment = new THREE.Mesh(
+            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
+            trailMaterial
+        );
+        trailSegment.position.set(2 - i, 0, -10);  // Spread segments along the Z axis
+        scene.add(trailSegment);
+        trailSegment.layers.set(NO_REF_LAYER);
+    }
+
+    const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
+    destinations.forEach((dest) => {
+        const destination = new THREE.Mesh(
+            new THREE.BoxGeometry(0.8, 0.1, 0.8),
+            destinationMaterial
+        );
+        destination.position.set(dest[0], dest[1], dest[2]);
+        scene.add(destination);
+        destination.layers.set(NO_REF_LAYER);
+    });
 }
 
 function handleGoals() {
-    if(animationInProgress) return;
-    if (yellowBlock.position.z === -1 && redBlock.state === 2
-        && goal1 === 0) {
-        goal1 = 1;
+    if(animationInProgress || dragging) return;
+    let goalInd = 0;
+    while(goals[goalInd] === 2) {
+        goalInd++;
+        if(goalInd === goals.length) return;
     }
-    if (redBlock.rotation.y > 1.5 && redBlock.state === 1
-        && mirror.position.x === -1 && goal1 === 2 && goal2 === 0) {
-        goal2 = 1;
-    }
-    // console.log("goal1:", goal1);
-    // console.log("goal2:", goal2);
+
+    let flag = true;
+    dragObj.forEach((obj) => {
+        if (obj.axis === 'z'){
+            // console.log(obj.position.z, obj.goalPositions[goalInd]);
+            if(obj.position.z !== obj.goalPositions[goalInd] && obj.goalPositions[goalInd] !== 999) {
+                flag = false;
+            }
+        } else if (obj.axis === 'x') {
+            if(obj.position.x !== obj.goalPositions[goalInd] && obj.goalPositions[goalInd] !== 999) {
+                flag = false;
+            }
+        }
+    });
+
+    spinObj.forEach((obj) => {
+        if(obj.state !== obj.goalStates[goalInd]) {
+            flag = false;
+        }
+    });
+
+    goals[goalInd] = flag ? 1 : 0;
 }
 
+init();
 createTrail();
 animate();
 
@@ -366,60 +446,65 @@ window.addEventListener('mousedown', onMouseDown, false);
 window.addEventListener('mousemove', onMouseMove, false);
 window.addEventListener('mouseup', onMouseUp, false);
 
-// Create Raycaster and mouse vector
-const raycaster = new THREE.Raycaster();
-const mouse = new THREE.Vector2();
-
-let originalIntersection = new THREE.Vector3();
-let originalPos;
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
+    if(animationInProgress) return;
+
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
     mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
-    // console.log(mouse.x, mouse.y);
 
     // Update the rayCaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
 
     // Check if we intersect with the yellow or red block
-    const intersects = raycaster.intersectObjects([yellowBlock, redBlock, mirror]);
+    const intersects = raycaster.intersectObjects([...spinObj, ...dragObj, mirror]);
 
     if (intersects.length > 0) {
-        selectedObject = intersects[0].object;
+        // Check if the selected object has a parent
+        if (intersects[0].object.parent.isGroup)
+            selectedObject = intersects[0].object.parent;
+        else
+            selectedObject = intersects[0].object;
 
-        if (selectedObject === yellowBlock) {
+        if (dragObj.includes(selectedObject)) {
             // Start dragging the selected object
             dragging = true;
             raycaster.setFromCamera(mouse, camera);
-            const ZPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
-            raycaster.ray.intersectPlane(ZPlane, originalIntersection);
-            originalPos = yellowBlock.position.z;
+            let Plane = new THREE.Plane();
+            if (selectedObject.axis === 'z') {
+                Plane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+                originalPos = selectedObject.position.z;
+            } else if (selectedObject.axis === 'x') {
+                Plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
+                originalPos = selectedObject.position.x;
+            }
+            raycaster.ray.intersectPlane(Plane, originalIntersection);
         } else if (selectedObject === mirror) {
             dragging = true;
             raycaster.setFromCamera(mouse, camera);
             const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
             raycaster.ray.intersectPlane(XPlane, originalIntersection);
             originalPos = mirror.position.x;
-        } else if (selectedObject === redBlock) {
+        } else if (spinObj.includes(selectedObject)) {
             // Check if the red block can rotate
-            let rotLim = rotationDirection === 1 ? redBlock.rotation.y < Math.PI - 0.01 : redBlock.rotation.y > 0.01;
+            let rotLim = rotationDirection === 1 ? selectedObject.state <= selectedObject.clip[0]
+                : selectedObject.state >= selectedObject.clip[1];
             // Perform rotation on the red block
             if (!rotLim)
                 rotationDirection *= -1;
-            if (!animationInProgress) {
-                totalRotation = 0;
-                targetRotation = rotationDirection * Math.PI / 2;
-                animationInProgress = true;
-                redBlock.state += rotationDirection;
-            }
+            totalRotation = 0;
+            targetRotation = rotationDirection * Math.PI / 2;
+            animationInProgress = true;
+            selectedObject.state += rotationDirection;
+            renderRotation(spinObj.indexOf(selectedObject));
         }
     }
 }
 
 // Handle mouse move event (dragging the yellow block)
 function onMouseMove(event) {
-    if (!dragging) return;
+    if (!dragging || animationInProgress) return;
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
@@ -429,17 +514,25 @@ function onMouseMove(event) {
     raycaster.setFromCamera(mouse, camera);
     let intersectionPoint;
 
-    if (selectedObject === yellowBlock) {
+    if (dragObj.includes(selectedObject)) {
         // Create a plane for dragging along the Z-axis
-        const ZPlane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+        let Plane = new THREE.Plane();
+        if (selectedObject.axis === 'z')
+            Plane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
+         else if (selectedObject.axis === 'x')
+            Plane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
 
         // Use rayCaster to find intersection point on the plane
         intersectionPoint = new THREE.Vector3();
-        raycaster.ray.intersectPlane(ZPlane, intersectionPoint);
-        const deltaZ = intersectionPoint.z - originalIntersection.z;
-
-        // Align the yellow block to the Z-axis of the intersection point
-        yellowBlock.position.z = Math.max(Math.min(originalPos + deltaZ, -1), -5);
+        raycaster.ray.intersectPlane(Plane, intersectionPoint);
+        let delta;
+        if (selectedObject.axis === 'z') {
+            delta = intersectionPoint.z - originalIntersection.z;
+            selectedObject.position.z = Math.max(Math.min(originalPos + delta, selectedObject.clip[1]), selectedObject.clip[0]);
+        } else if (selectedObject.axis === 'x') {
+            delta = intersectionPoint.x - originalIntersection.x;
+            selectedObject.position.x = Math.max(Math.min(originalPos + delta, selectedObject.clip[1]), selectedObject.clip[0]);
+        }
     } else if (selectedObject === mirror) {
         // Create a plane for dragging along the X-axis
         const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
@@ -450,7 +543,7 @@ function onMouseMove(event) {
         const deltaX = intersectionPoint.x - originalIntersection.x;
 
         // Move the mirror along the X-axis
-        mirror.position.x = Math.max(Math.min(originalPos + deltaX, 3), -4);
+        mirror.position.x = Math.max(Math.min(originalPos + deltaX, data.mirror.clip[1]), data.mirror.clip[0]);
     }
 }
 
@@ -458,16 +551,26 @@ function onMouseMove(event) {
 function onMouseUp() {
     dragging = false;
 
-    if (selectedObject === yellowBlock) {
+    if (dragObj.includes(selectedObject)) {
         // Snap the yellow block to the nearest grid position
-        yellowBlock.position.z = Math.round(yellowBlock.position.z);
+        if(selectedObject.axis === 'z')
+            selectedObject.position.z = Math.round(selectedObject.position.z);
+        else if(selectedObject.axis === 'x')
+            selectedObject.position.x = Math.round(selectedObject.position.x);
     } else if (selectedObject === mirror) {
         // Snap the mirror to the nearest grid position
         mirror.position.x = Math.round(mirror.position.x);
     }
     console.log("mirror position:", mirror.position.x);
-    console.log("yellow block position:", yellowBlock.position.z);
-    console.log("red block state:", redBlock.state);
+    dragObj.forEach(obj => {
+        if (obj.axis === 'z')
+            console.log("Drag obj position:", obj.position.z);
+        else if (obj.axis === 'x')
+            console.log("Drag obj position:", obj.position.x);
+    });
+    spinObj.forEach(obj => {
+        console.log("Spin obj state:", obj.state);
+    });
 
     selectedObject = null;
 }
