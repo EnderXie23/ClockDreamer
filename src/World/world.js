@@ -4,8 +4,8 @@ import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {Water} from "three/addons/objects/Water.js";
 import {Sky} from "three/addons/objects/Sky.js";
-// import nipplejs from 'nipplejs';
 import Stats from "three/addons/libs/stats.module.js";
+import {Euler} from "three";
 
 // All global variables
 // Basic setup
