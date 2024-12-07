@@ -1,5 +1,4 @@
 import * as THREE from 'three';
-// import
 import {Skill, Player, Enemy, Buff} from './Character.js';
 import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
