@@ -1,11 +1,11 @@
 import * as THREE from 'three';
-import {PointerLockControls} from "three/examples/jsm/controls/PointerLockControls.js";
-import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
-import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
-import {Water} from "three/examples/jsm/objects/Water.js";
-import {Sky} from "three/examples/jsm/objects/Sky.js";
+import {PointerLockControls} from "three/addons/controls/PointerLockControls.js";
+import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {Water} from "three/addons/objects/Water.js";
+import {Sky} from "three/addons/objects/Sky.js";
 import nipplejs from "nipplejs";
-import Stats from "three/examples/jsm/libs/stats.module.js";
+import Stats from "three/addons/libs/stats.module.js";
 
 // All global variables
 // Basic setup

@@ -1,8 +1,8 @@
 import * as THREE from 'three';
 import {gsap} from 'gsap';
 import {Skill, Player, Enemy, Buff} from './Character.js';
-import {MMDLoader} from "three/examples/jsm/loaders/MMDLoader.js";
-import {GLTFLoader} from "three/examples/jsm/loaders/GLTFLoader.js";
+import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
+import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 
 let scene, camera, renderer;
 let loadedTextures = [], loadedSounds = [], loadedModels = [];
@@ -114,7 +114,7 @@ function loadModel(url) {
             loader = new GLTFLoader();
         loader.load(url, (model) => {
             if (url.includes('.pmx')) {
-                model.scale.set(0.1, 0.1, 0.1);
+                model.scale.setScalar(0.1);
                 res = model;
             }else {
                 model.scene.children[0].scale.set(1.2, 1.2, 1.2);

@@ -1,7 +1,7 @@
 import {data} from './data.js';
-import {MTLLoader} from 'three/examples/jsm/loaders/MTLLoader.js';
-import {OBJLoader} from 'three/examples/jsm/loaders/OBJLoader.js';
-import {OrbitControls} from "three/examples/jsm/controls/OrbitControls.js";
+import {MTLLoader} from 'three/addons/loaders/MTLLoader.js';
+import {OBJLoader} from 'three/addons/loaders/OBJLoader.js';
+import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 
 let scene, renderer, controls, camera, ambient;
 let floorplan, settings, grid, light;
@@ -70,9 +70,7 @@ const initGame = async () => {
     controls.enableDamping = true;
     controls.dampingFactor = 0.2;
     controls.enableRotate = false;
-
     controls.autoRotate = false;
-    controls.autoRotateSpeed = -2;
 
     document.body.appendChild(renderer.domElement);
 
@@ -307,8 +305,8 @@ class Light {
             let basicMaterial = new THREE.MeshBasicMaterial({
                 color: this.color
             });
-            let lightBulbe = new THREE.Mesh(sphereGeometry, basicMaterial);
-            pointLight.add(lightBulbe);
+            let lightBulb = new THREE.Mesh(sphereGeometry, basicMaterial);
+            pointLight.add(lightBulb);
         }
 
         let time = Date.now() * 0.0005;
@@ -335,11 +333,8 @@ let defaultMapGeometry = new THREE.Vector3(0, 0, 0);
 
 // =====Event Triggers======
 const DEST_BLACKLIST = [{z: 10, x: 9, y: 2}, {z: 10, x: 8, y: 8}, {z: 10, x: 4, y: 6}, {z: 10, x: 2, y: 10}]
-const INTRO = {z: 10, x: 10, y: 2};
-const PORTFOLIO = {z: 10, x: 9, y: 8};
-const CONTACT = {z: 10, x: 3, y: 6};
-const BONUS = {z: 10, x: 2, y: 9};
-let eventRunning = false;
+const DEST = [{z: 10, x: 10, y: 2}, {z: 10, x: 9, y: 8}, {z: 10, x: 3, y: 6}, {z: 10, x: 2, y: 9}];
+const returnPos = [{z: 10, x: 6, y: 0}, {z: 10, x: 10, y: 2}, {z: 10, x: 9, y: 8}, {z: 10, x: 3, y: 6}];
 
 // =====variables=====
 let character;
@@ -388,21 +383,21 @@ async function loadGame() {
 
                 Promise.all(dataPromises).then((values) => {
                     gameData = values[0] ? values[0] : {level: 1, score: 0, state: "path"};
-                    if(gameData.state !== "path")
-                        window.location.href = "world.html";
+                    // if(gameData.state !== "path")
+                        // window.location.href = "world.html";
 
                     litLightNum = Math.min(gameData.level, 4);
+
                     for(let i = 0; i < litLightNum; i++)
                         scene.add(progress.shift());
                 })
             })
-            .then(await loadCharacter(scene)
-                .then(() => {
-                    // limit frame rate based on the settings
-                    fpsInterval = 1000 / settings.frameRate;
-                    then = Date.now();
-                    startTime = then;
-                }))
+            .then(await loadCharacter(scene).then(() => {
+                // limit frame rate based on the settings
+                fpsInterval = 1000 / settings.frameRate;
+                then = Date.now();
+                startTime = then;
+            }))
             .then(() => {
                 animate();
                 // let loadingDiv = document.getElementById('loading');
@@ -430,7 +425,7 @@ function animate() {
         applyMovement();
 
         // render
-        if (controls) controls.update();
+        // if (controls) controls.update();
         renderer.render(scene, camera);
 
         pointLights.forEach((each) => {
@@ -494,9 +489,9 @@ async function loadCharacter(scene) {
         objLoader.load('character.obj', (object) => {
             // place character to the starting pos
             let pos = getActualPosition({
-                x: Math.ceil(data.floorplan[0].length / 2),
-                y: 0,
-                z: Math.floor(data.floorplan.length / 2)
+                x: returnPos[litLightNum - 1].x,
+                y: returnPos[litLightNum - 1].y,
+                z: returnPos[litLightNum - 1].z
             });
             if (isBonus) {
                 object.position.set(
@@ -538,53 +533,33 @@ let applyGravity = () => {
     }
 }
 
-let openURL = async (URL) => {
-    if (!eventRunning) {
-        eventRunning = true;
-        window.open(URL, "_self");
-    }
-}
-
 let applyMovement = async () => {
     let currentPos = getMapLocation(character.position);
 
     // 保留进度触发逻辑
-    if (currentPos.x === INTRO.x && currentPos.y === INTRO.y) {
-        if (litLightNum === 1) {
-            // scene.add(progress.shift()); // 触发下一个点亮
-            enterLight();
-        } else {
-            showMessage("You have already visited this place!")
+    for (let i = 0; i < DEST.length; i++) {
+        if (currentPos.x === DEST[i].x && currentPos.y === DEST[i].y) {
+            if(litLightNum === i + 1) {
+                if(i === 3) { // Game end
+                    gameData = {
+                        level: 1,
+                        score: 0,
+                        state: "path",
+                    }
+                    localStorage.setItem('gameData', JSON.stringify(gameData));
+                    showMessage("Congratulations! You have completed the game!");
+                    setTimeout(() => {
+                        window.location.href = "index.html";
+                    }, 1000);
+                } else { // Enter new level
+                    enterLight();
+                }
+            } else if (litLightNum > i + 1) {
+                showMessage("You have already visited this place!");
+            } else {
+                showMessage("You have not yet unlocked this place!");
+            }
         }
-    } else if (currentPos.x === PORTFOLIO.x && currentPos.y === PORTFOLIO.y) {
-        if (litLightNum === 2) {
-            // scene.add(progress.shift()); // 触发下一个点亮
-            enterLight();
-        } else {
-            showMessage("You have already visited this place!")
-        }
-    } else if (currentPos.x === CONTACT.x && currentPos.y === CONTACT.y) {
-        if (litLightNum === 3) {
-            // scene.add(progress.shift()); // 触发下一个点亮
-            enterLight();
-        } else {
-            showMessage("You have already visited this place!")
-        }
-    } else if (currentPos.x === BONUS.x && currentPos.y === BONUS.y) {
-        // 到达最后一个点，完成游戏
-        // isMoving = false; // 停止移动
-        // console.log("Game completed!"); // 记录完成
-        gameData = {
-            level: 1,
-            score: 0,
-            state: "path",
-        }
-        localStorage.setItem('gameData', JSON.stringify(gameData));
-        showMessage("Congratulations! You have completed the game!");
-        setTimeout(() => {
-            window.location.href = "index.html";
-        }, 1000);
-
     }
 
     if (isMoving) {
@@ -756,14 +731,14 @@ let getActualPosition = (mapVector) => {
 }
 
 // ========== MOUSE ACTION ==========
-export function mouseListener() {
+function mouseListener() {
     renderer.domElement.addEventListener('mousemove', onMouseMove, false);
     renderer.domElement.addEventListener('click', onMouseDown, false);
     renderer.domElement.addEventListener('touchstart', onMouseDown, false);
 }
 
 let onMouseDown = async (event) => {
-    controls.autoRotate = false;
+    // controls.autoRotate = false;
     if (isMobile()) {
         mouse.x = (event.changedTouches[0].clientX / window.innerWidth) * 2 - 1;
         mouse.y = -(event.changedTouches[0].clientY / window.innerHeight) * 2 + 1;

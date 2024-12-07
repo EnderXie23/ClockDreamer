@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import {Reflector} from "three/examples/jsm/objects/Reflector.js";
+import {Reflector} from "three/addons/objects/Reflector.js";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 
 const loader = new GLTFLoader();
