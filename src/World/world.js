@@ -4,7 +4,7 @@ import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {Water} from "three/addons/objects/Water.js";
 import {Sky} from "three/addons/objects/Sky.js";
-import nipplejs from "nipplejs";
+// import nipplejs from 'nipplejs';
 import Stats from "three/addons/libs/stats.module.js";
 
 // All global variables
@@ -114,7 +114,6 @@ function loadAllAssets() {
 
     Promise.all([...texturePromises, ...modelPromises, ...gameDataPromise])
         .then((results) => {
-            console.log(results);
             loadedTextures = results.slice(0, texturePromises.length);
             loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
             const loadedData = results.slice(texturePromises.length + modelPromises.length,

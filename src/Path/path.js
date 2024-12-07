@@ -334,7 +334,7 @@ let defaultMapGeometry = new THREE.Vector3(0, 0, 0);
 // =====Event Triggers======
 const DEST_BLACKLIST = [{z: 10, x: 9, y: 2}, {z: 10, x: 8, y: 8}, {z: 10, x: 4, y: 6}, {z: 10, x: 2, y: 10}]
 const DEST = [{z: 10, x: 10, y: 2}, {z: 10, x: 9, y: 8}, {z: 10, x: 3, y: 6}, {z: 10, x: 2, y: 9}];
-const returnPos = [{z: 10, x: 6, y: 0}, {z: 10, x: 10, y: 2}, {z: 10, x: 9, y: 8}, {z: 10, x: 3, y: 6}];
+const initPos = [{z: 10, x: 6, y: 0}, {z: 10, x: 11, y: 2}, {z: 10, x: 10, y: 8}, {z: 10, x: 3, y: 5}];
 
 // =====variables=====
 let character;
@@ -489,9 +489,9 @@ async function loadCharacter(scene) {
         objLoader.load('character.obj', (object) => {
             // place character to the starting pos
             let pos = getActualPosition({
-                x: returnPos[litLightNum - 1].x,
-                y: returnPos[litLightNum - 1].y,
-                z: returnPos[litLightNum - 1].z
+                x: initPos[litLightNum - 1].x,
+                y: initPos[litLightNum - 1].y,
+                z: initPos[litLightNum - 1].z
             });
             if (isBonus) {
                 object.position.set(
