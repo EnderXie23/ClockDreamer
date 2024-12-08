@@ -14,12 +14,12 @@ const actionContainer = document.getElementById('action-sequence');
 
 // Action sequence handling
 class PlayerInfo {
-    constructor(playerId, speed, charType = "player") {
+    constructor(playerId, speed, charType = "player", actionVal = 100, dist = 10000) {
         this.playerId = playerId;
         this.speed = speed;
-        this.actionVal = 100;
-        this.dist = 10000;
         this.charType = charType;
+        this.actionVal = actionVal;
+        this.dist = dist;
     }
 }
 
@@ -86,12 +86,6 @@ let selectorActive = false;
 let playerCubes = [];
 let enemyCubes = [];
 
-// For the camera animation
-let animationProgress = 0;
-let spinCenter, spinLookAt, cameraPos;
-let spinDegree = Math.PI / 2;
-let translateDir = new THREE.Vector3(0.1, 0, 0.1);
-
 function loadTexture(url) {
     return new Promise((resolve, reject) => {
         const loader = new THREE.TextureLoader();
@@ -115,7 +109,7 @@ function loadModel(url) {
             if (url.includes('.pmx')) {
                 model.scale.setScalar(0.1);
                 res = model;
-            }else {
+            } else {
                 model.scene.children[0].scale.set(1.2, 1.2, 1.2);
                 res = model.scene.children[0];
             }
@@ -200,12 +194,12 @@ function loadAllAssets() {
 }
 
 function resolveGameData() {
-    if (gameData.state !== "in game" || gameData.gameMode !== 1){
+    if (gameData.state !== "in game" || gameData.gameMode !== 1) {
         showMessage("Wrong game state", 2);
-        setTimeout(()=>{
-            window.location.href = "path.html";
+        setTimeout(() => {
+            // window.location.href = "path.html";
         }, 1000);
-        return new Error("Wrong game state");
+        // return new Error("Wrong game state");
     }
 
     // Set difficulty level
@@ -304,7 +298,7 @@ function initGame() {
     // Clone the initial players and enemies
     allPlayers = [];
     initPlayers.forEach(player => {
-        if(player.hp <= 0) return;
+        if (player.hp <= 0) return;
         allPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
     });
     allEnemies = [];
@@ -425,68 +419,45 @@ function animate() {
     renderer.render(scene, camera);
 }
 
-// Easing function for spin speed
-function easeInOut(t) {
-    return t < 0.5 ? 0.8 * (2 * t * t) + 0.1 * t : 0.8 * (-1 + (4 - 2 * t) * t) + 0.1 * t;
-}
+// Smooth camera movement
+function animateCameraMove(newPosition, newLookAt, newFov = 75, duration = 1) {
+    // Store the initial camera position and look-at target
+    const initialPosition = camera.position.clone();
+    const initialLookAt = new THREE.Vector3();
+    camera.getWorldDirection(initialLookAt);
+    initialLookAt.add(camera.position);
 
-// Camera spin animations
-function animateCameraSpin() {
-    const reversed = spinDegree < 0;
-    const radius = Math.sqrt(Math.pow(cameraPos.x - spinCenter.x, 2) + Math.pow(cameraPos.z - spinCenter.z, 2));
-    const initProgress = Math.atan2(cameraPos.z - spinCenter.z, cameraPos.x - spinCenter.x);
-
-    // Adjust spin speed using easing function
-    const easedProgress = easeInOut(animationProgress / Math.abs(spinDegree));
-    animationProgress += 0.02 * (1 - easedProgress); // Slow start and end, faster in the middle
-
-    if (animationProgress > Math.abs(spinDegree) - 0.05) {
-        // console.log("Animation complete!");
-        animationProgress = 0;
-        return;
-    }
-
-    // Calculate the new camera position along a circular path
-    const x = radius * Math.cos(initProgress + (reversed ? -1 : 1) * animationProgress);
-    const z = radius * Math.sin(initProgress + (reversed ? -1 : 1) * animationProgress);
-    camera.position.set(x, spinCenter.y, z);
-
-    // Keep looking at the center of the scene
-    camera.lookAt(spinLookAt);
-
-    // Render the scene
-    renderer.render(scene, camera);
-    requestAnimationFrame(animateCameraSpin);
-}
-
-// Function to animate camera translation
-function animateCameraTranslation() {
-    let translationProgress = 0;
-
-    function translateCamera() {
-        // Update the progress (range from 0 to 1)
-        translationProgress += 0.01;
-        if (translationProgress > 1) {
-            translationProgress = 0;
-            return;
+    // Animate the camera's position and look-at simultaneously using GSAP
+    gsap.to(initialPosition, {
+        x: newPosition.x,
+        y: newPosition.y,
+        z: newPosition.z,
+        duration: duration,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+            camera.position.set(initialPosition.x, initialPosition.y, initialPosition.z);
         }
+    });
 
-        // Adjust translation speed using easing function
-        const easedProgress = easeInOut(translationProgress);
+    gsap.to(initialLookAt, {
+        x: newLookAt.x,
+        y: newLookAt.y,
+        z: newLookAt.z,
+        duration: duration,
+        ease: 'power2.inOut',
+        onUpdate: () => {
+            camera.lookAt(initialLookAt);
+        }
+    });
 
-        // Lerp (linear interpolate) the camera position from start to end
-        const targetPos = camera.position.clone().add(translateDir);
-        camera.position.lerp(targetPos, easedProgress);
-
-        // Keep looking at the center of the scene
-        camera.lookAt(0, 0, 0);
-
-        // Render the scene
-        renderer.render(scene, camera);
-        requestAnimationFrame(translateCamera);
-    }
-
-    translateCamera();
+    gsap.to(camera, {
+        fov: newFov,
+        duration: duration,
+        ease: 'ease.inOut',
+        onUpdate: () => {
+            camera.updateProjectionMatrix(); // This is necessary to update the camera's projection matrix when the FOV changes
+        }
+    });
 }
 
 // Function to create a card element
@@ -525,7 +496,7 @@ function clearActions() {
 }
 
 // Function to show a message
-function showMessage(message, mode = 1) {
+function showMessage(message, duration = 1500, mode = 1) {
     const messageBox = document.getElementById('messageBox');
     const messageText = document.getElementById('messageText');
 
@@ -538,11 +509,9 @@ function showMessage(message, mode = 1) {
         messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
     }
 
-
-    // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 2000);  // Message disappears after 3 seconds
+    }, duration);
 }
 
 // Screen shaker
@@ -630,6 +599,15 @@ function animateAttack(attacker, target) {
     animateAttackMove();
 }
 
+// Disable / enable buttons
+function toggleButtons(enabled = true) {
+    let buttons = [];
+    buttons.push(document.getElementById('attackButton'));
+    buttons.push(document.getElementById('skillButton'));
+    buttons.push(document.getElementById('hyperSkillButton'));
+    buttons.forEach(button => button.disabled = !enabled);
+}
+
 // Animate a boost
 function animateBoostEffect(target, boost = true) {
     const ringCount = 5;
@@ -690,93 +668,6 @@ function animateBoostEffect(target, boost = true) {
                 sound.play();
         });
     }
-}
-
-// Animate a hyper attack
-function hyperAttack(attacker) {
-    stopTargetSelector();
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => button.disabled = true);
-
-    spinCenter = new THREE.Vector3(0, 4, 0);
-    spinLookAt = new THREE.Vector3(0, 0, 0);
-    cameraPos = camera.position.clone();
-    const startPos = camera.position.clone();
-    spinDegree = Math.PI / 8;
-    animateCameraSpin();
-    setTimeout(() => {
-        translateDir = new THREE.Vector3(0, 0, 0.1);
-        animateCameraTranslation();
-        setTimeout(() => {
-            animateHyperAttack(attacker);
-            setTimeout(() => {
-                translateDir = new THREE.Vector3(0, 0, -0.1);
-                animateCameraTranslation();
-                setTimeout(() => {
-                    cameraPos = camera.position.clone();
-                    spinDegree = -Math.PI / 8;
-                    animateCameraSpin();
-                    setTimeout(() => {
-                        camera.position.set(startPos.x, startPos.y, startPos.z);
-                        targetSelector('enemy');
-                        afterAction(false);
-                    }, 1200);
-                }, 1900);
-            }, 1600);
-        }, 700);
-    }, 1100);
-}
-
-function animateHyperAttack(attacker) {
-    const playerCube = attacker.cube;
-
-    // Create an animation for the player attack using GSAP
-    const originalPosition = playerCube.position.clone();
-    const originalScale = playerCube.scale.clone();
-    const enemyPosition = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
-
-    // Animation sequence: Jump up, grow, and smash into enemies
-    gsap.timeline()
-        .to(playerCube.position, {y: originalPosition.y + 3, duration: 0.5, ease: "power2.out"}) // Jump up
-        .to(playerCube.scale, {x: 5, y: 5, z: 5, duration: 0.3, ease: "power2.out"}) // Grow
-        .to(playerCube.position, {
-            x: enemyPosition.x,
-            y: enemyPosition.y + 6,
-            z: enemyPosition.z,
-            duration: 0.5,
-            ease: "bounce.out",
-        })
-        .to(playerCube.position, {
-            x: enemyPosition.x,
-            y: enemyPosition.y,
-            z: enemyPosition.z,
-            duration: 0.5,
-            ease: "bounce.out",
-            onComplete: () => { // Smash down
-                // Check for collisions with enemies
-                allEnemies.forEach(enemy => {
-                    enemy.onLoseHp(3000);
-                });
-                loadedSounds.forEach(sound => {
-                    if (sound.name.includes("Attack.wav"))
-                        sound.play();
-                });
-            }
-        })
-        .to(playerCube.scale, {
-            x: originalScale.x,
-            y: originalScale.y,
-            z: originalScale.z,
-            duration: 0.3,
-            ease: "power2.in"
-        }) // Reset size
-        .to(playerCube.position, {
-            x: originalPosition.x,
-            y: originalPosition.y,
-            z: originalPosition.z,
-            duration: 0.3,
-            ease: "power2.in"
-        }); // Reset position
 }
 
 // Push action queue forward by moveVal
@@ -961,12 +852,16 @@ function targetSelector(targetType) {
 
     // Set initial selection based on target type
     if (targetType === 'player' && allPlayers.length > 0) {
-        currentTarget = allPlayers[0];
-        currentTargetCube = allPlayers[0].cube;
+        if(!allPlayers.includes(currentTarget)) {
+            currentTarget = allPlayers[0];
+            currentTargetCube = allPlayers[0].cube;
+        }
         positionSelectionIndicator(currentTargetCube);
     } else if (targetType === 'enemy' && allEnemies.length > 0) {
-        currentTarget = allEnemies[0];
-        currentTargetCube = allEnemies[0].cube;
+        if(!allEnemies.includes(currentTarget)) {
+            currentTarget = allEnemies[0];
+            currentTargetCube = allEnemies[0].cube;
+        }
         positionSelectionIndicator(currentTargetCube);
     }
 
@@ -975,7 +870,7 @@ function targetSelector(targetType) {
         const rect = container.getBoundingClientRect();
 
         // Calculate mouse position in normalized device coordinates
-        if(isMobile()){
+        if (isMobile()) {
             mouse.x = ((event.touches[0].clientX - rect.left) / rect.width) * 2 - 1;
             mouse.y = -((event.touches[0].clientY - rect.top) / rect.height) * 2 + 1;
         } else {
@@ -1023,7 +918,7 @@ function targetSelector(targetType) {
     }
 
     function switchToAdjacentTarget(direction) {
-        console.log("Switching to adjacent target for " + targetType + "!");
+        // console.log("Switching to adjacent target for " + targetType + "!");
         let targetArray = targetType === 'player' ? allPlayers : allEnemies;
         let currentIndex = targetArray.findIndex(target => target.cube === currentTargetCube);
 
@@ -1053,7 +948,13 @@ function stopTargetSelector() {
     selectionIndicator.visible = false;
 }
 
-function handleWin(){
+function handleWin() {
+    stopTargetSelector();
+    showMessage("Congratulations! You won!");
+    if(camera.position.x !== 3 || camera.position.y !== 4 || camera.position.z !== 7) {
+        animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.1);
+    }
+
     let updateGameData = {
         level: gameData.level,
         score: gameData.score + 500,
@@ -1063,16 +964,16 @@ function handleWin(){
     console.log("Game data update:" + JSON.stringify(updateGameData));
 
     // Store player data
-    playerData.forEach(player=>{
+    playerData.forEach(player => {
         player.hp = getPlayerHp(player.id);
     });
     localStorage.setItem('playerData', JSON.stringify(playerData));
     console.log("Player data update:" + JSON.stringify(playerData));
     setTimeout(() => {
         window.location.href = "world.html";
-    }, 1000);
+    }, 1300);
 
-    function getPlayerHp(id){
+    function getPlayerHp(id) {
         let hp = 0;
         allPlayers.forEach(player => {
             if (player.id === id) {
@@ -1086,9 +987,7 @@ function handleWin(){
 // Logic after an action is performed
 function afterAction(proceed = true) {
     // Enable the buttons
-    const buttons = document.querySelectorAll('button');
-    buttons.forEach(button => button.disabled = false);
-
+    toggleButtons(true);
     updateStatusPanel();
 
     filterActions();
@@ -1096,11 +995,8 @@ function afterAction(proceed = true) {
         stopTargetSelector();
         showMessage("You lost! Game over!");
     }
-    if (allEnemies.length === 0) {
-        stopTargetSelector();
-        showMessage("You won! Game over!");
+    if (allEnemies.length === 0)
         handleWin();
-    }
 
     if (!proceed) return;
 
@@ -1139,11 +1035,11 @@ function nextAction() {
 
         // Auto select the target assuming an attack
         attackMethod = 1;
+        document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
         stopTargetSelector();
         targetSelector('enemy');
     } else {
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => button.disabled = true);
+        toggleButtons(false);
         console.log("Enemy " + info.playerId + " is acting!");
         activePlayer = allEnemies.find(enemy => enemy.id === info.playerId);
 
@@ -1153,6 +1049,216 @@ function nextAction() {
         animateAttack(activePlayer, allPlayers[randomIndex]);
         setTimeout(afterAction, 1100);
     }
+}
+
+// Skills
+function skill1(attacker) {
+    currentTarget.onDamage(attacker, 10);
+    animateAttack(attacker, currentTarget);
+
+    setTimeout(() => {
+        speedUp(currentTarget, -70);
+        const debuff = new Buff("atk_debuff", "incAtk", -50, 1, [currentTarget]);
+        debuff.applyEffect();
+        animateBoostEffect(currentTarget, false);
+        setTimeout(() => {
+            afterAction();
+        }, 500);
+    }, 600);
+}
+
+function skill2(attacker) {
+    currentTarget.onDamage(attacker, 30);
+    animateAttack(attacker, currentTarget);
+
+    setTimeout(() => {
+        afterAction();
+    }, 1100);
+}
+
+function skill3(attacker) {
+    currentTarget.onHeal(1500);
+    const buff = new Buff("atk_buff", "incAtk", 50, 1, [currentTarget]);
+    buff.applyEffect();
+    if(currentTarget.id !== attacker.id) {
+        let flag = false;
+        actionQ.elements.forEach(action => {
+            flag |= action.PlayerInfo.playerId === currentTarget.id;
+        });
+        if(flag)
+            actionForward(currentTarget, 1);
+        else {
+            const info = new PlayerInfo(currentTarget.id, currentTarget.speed, "player", currentVal, 0);
+            actionQ.elements.push({index: 0, PlayerInfo: info});
+        }
+    }
+    animateBoostEffect(currentTarget);
+
+    setTimeout(() => {
+        afterAction();
+    }, 1500);
+}
+
+// Hyper attacks
+function hyperSkill1(attacker) {
+    stopTargetSelector();
+    toggleButtons(false);
+
+    animateCameraMove(new THREE.Vector3(0, 5, 12), new THREE.Vector3(0, 0, 0), 75, 1.5);
+    setTimeout(() => {
+        animateHyperAttack(attacker);
+        setTimeout(() => {
+            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
+            setTimeout(() =>{
+                toggleButtons(true);
+                targetSelector('enemy');
+            }, 1500);
+        }, 1600);
+    }, 1300);
+
+    function animateHyperAttack(attacker) {
+        const playerCube = attacker.cube;
+
+        // Create an animation for the player attack using GSAP
+        const originalPosition = playerCube.position.clone();
+        const originalScale = playerCube.scale.clone();
+        const enemyPosition = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
+
+        // Animation sequence: Jump up, grow, and smash into enemies
+        gsap.timeline()
+            .to(playerCube.position, {y: originalPosition.y + 3, duration: 0.5, ease: "power2.out"}) // Jump up
+            .to(playerCube.scale, {x: 5, y: 5, z: 5, duration: 0.3, ease: "power2.out"}) // Grow
+            .to(playerCube.position, {
+                x: enemyPosition.x,
+                y: enemyPosition.y + 6,
+                z: enemyPosition.z,
+                duration: 0.5,
+                ease: "bounce.out",
+            })
+            .to(playerCube.position, {
+                x: enemyPosition.x,
+                y: enemyPosition.y,
+                z: enemyPosition.z,
+                duration: 0.5,
+                ease: "bounce.out",
+                onComplete: () => { // Smash down
+                    // Check for collisions with enemies
+                    allEnemies.forEach(enemy => {
+                        enemy.onLoseHp(1000);
+                        speedUp(enemy, -20);
+                        animateBoostEffect(enemy, false);
+                    });
+                    loadedSounds.forEach(sound => {
+                        if (sound.name.includes("Attack.wav"))
+                            sound.play();
+                    });
+                    afterAction(false);
+                    toggleButtons(false);
+                }
+            })
+            .to(playerCube.scale, {
+                x: originalScale.x,
+                y: originalScale.y,
+                z: originalScale.z,
+                duration: 0.3,
+                ease: "power2.in"
+            }) // Reset size
+            .to(playerCube.position, {
+                x: originalPosition.x,
+                y: originalPosition.y,
+                z: originalPosition.z,
+                duration: 0.3,
+                ease: "power2.in"
+            }); // Reset position
+    }
+}
+
+function hyperSkill2(attacker) {
+    let ammo = 3;
+    stopTargetSelector();
+    const goalPos = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
+    animateCameraMove(attacker.cube.position.clone(), goalPos, 100, 1.5);
+    toggleButtons(false);
+
+    setTimeout(() => {
+        targetSelector('enemy');
+        showMessage("You have " + ammo + " ammos left!", 1000);
+
+        document.getElementById('ActButton').style.display = 'block';
+        document.getElementById('ActButton').addEventListener('click', onClick);
+    }, 1500);
+
+    function onClick() {
+        ammo -= 1;
+        // Create an ammo cube
+        const ammoGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+        const ammoMaterial = new THREE.MeshBasicMaterial({color: 0xff0000});
+        const ammoCube = new THREE.Mesh(ammoGeometry, ammoMaterial);
+        ammoCube.position.set(attacker.cube.position.x, attacker.cube.position.y, attacker.cube.position.z);
+        scene.add(ammoCube);
+
+        // Animate the ammo cube to the target
+        const goalPos = currentTarget.cube.position.clone();
+        gsap.to(ammoCube.position, {
+            x: goalPos.x,
+            y: goalPos.y,
+            z: goalPos.z,
+            duration: 0.3,
+            ease: 'power1.out',
+            onComplete: () => {
+                // Check for collisions with enemies
+                currentTarget.onDamage(attacker, (ammo === 0) ? 30 : 15);
+                loadedSounds.forEach(sound => {
+                    if (sound.name.includes("Attack.wav"))
+                        sound.play();
+                });
+                shakeScreen(0.3, 300);
+                afterAction(false);
+                toggleButtons(false);
+                scene.remove(ammoCube);
+                if (ammo === 0) {
+                    stopTargetSelector();
+                    document.getElementById('ActButton').style.display = 'none';
+                    document.getElementById('ActButton').removeEventListener('click', onClick);
+                    animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
+                    setTimeout(() => {
+                        targetSelector('enemy');
+                        toggleButtons(true);
+                    }, 1500);
+                } else {
+                    stopTargetSelector();
+                    targetSelector('enemy');
+                    showMessage("You have " + ammo + " ammos left!");
+                }
+            }
+        });
+    }
+}
+
+function hyperSkill3() {
+    stopTargetSelector();
+    toggleButtons(false);
+    animateCameraMove(new THREE.Vector3(0, 1, -2), new THREE.Vector3(0, 1, 0), 100, 2.5);
+
+    setTimeout(() => {
+        allPlayers.forEach(player => {
+            speedUp(player, 20);
+            actionForward(player, 0.45);
+            animateBoostEffect(player);
+            player.onHeal(0.1 * player.maxHp);
+        });
+        console.log("Speed up and forward action!");
+        const ultraBuff = new Buff("Ultra", "incAtk", 100, 1, allPlayers);
+        ultraBuff.applyEffect();
+        updateStatusPanel();
+        setTimeout(() => {
+            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
+            setTimeout(() => {
+                toggleButtons(true);
+                targetSelector('enemy');
+            }, 1500);
+        }, 1000);
+    }, 2500);
 }
 
 // Speed up all players by val
@@ -1202,8 +1308,8 @@ window.addEventListener('resize', function () {
 // Button logic
 document.getElementById('attackButton').addEventListener('click', function onClick() {
     if (attackMethod === 1) {
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => button.disabled = true);
+        document.getElementById('attackButton').style.backgroundColor = '';
+        toggleButtons(false);
         stopTargetSelector();
 
         activePlayer.useSkill(0, currentTarget);
@@ -1214,39 +1320,65 @@ document.getElementById('attackButton').addEventListener('click', function onCli
     } else {
         stopTargetSelector();
         attackMethod = 1;
+        document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
+        document.getElementById('skillButton').style.backgroundColor = '';
         targetSelector('enemy');
     }
 });
 document.getElementById('skillButton').addEventListener('click', function onClick() {
+    const skillTarget = (activePlayer.id === 3) ? 'player' : 'enemy';
+
     if (attackMethod === 2) {
-        const buttons = document.querySelectorAll('button');
-        buttons.forEach(button => button.disabled = true);
+        document.getElementById('skillButton').style.backgroundColor = '';
+        toggleButtons(false);
         stopTargetSelector();
 
-        activePlayer.useSkill(1, currentTarget);
-        animateBoostEffect(currentTarget);
-        setTimeout(() => {
-            afterAction();
-        }, 1500);
+        switch (activePlayer.id) {
+            case 1:
+                skill1(activePlayer);
+                break;
+            case 2:
+                skill2(activePlayer);
+                break;
+            case 3:
+                skill3(activePlayer);
+                break;
+        }
     } else {
+        switch (activePlayer.id) {
+            case 1:
+                showMessage("Skill 1: deal damage and debuff the enemy!");
+                break;
+            case 2:
+                showMessage("Skill 2: deal great damage to the enemy!");
+                break;
+            case 3:
+                showMessage("Skill 3: heal target and act immediately!");
+                break;
+        }
+
         stopTargetSelector();
         attackMethod = 2;
-        targetSelector('player');
+        document.getElementById('attackButton').style.backgroundColor = '';
+        document.getElementById('skillButton').style.backgroundColor = 'rgb(255,234,0)';
+        targetSelector(skillTarget);
     }
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
-    allPlayers.forEach(player => {
-        speedUp(player, 20);
-        actionForward(player, 0.45);
-    });
-    allPlayers.forEach(player => {
-        animateBoostEffect(player);
-    });
-    updateStatusPanel();
-    console.log("Speed up and forward action!");
-    const ultraBuff = new Buff("Ultra", "incAtk", 100, 1, allPlayers);
-    ultraBuff.applyEffect();
-    updateStatusPanel();
+    switch (activePlayer.id) {
+        case 1:
+            showMessage("Hyper Skill 1: deal damage and speed down all enemies!");
+            hyperSkill1(activePlayer);
+            break;
+        case 2:
+            showMessage("Hyper Skill 2: shoot 3 ammos to target enemies!");
+            hyperSkill2(activePlayer);
+            break;
+        case 3:
+            showMessage("Hyper Skill 3: speed up all players and buff their attack!");
+            hyperSkill3();
+            break;
+    }
 });
 
 document.getElementById('musicButton').addEventListener('click', function onClick() {
@@ -1261,9 +1393,7 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    hyperAttack(activePlayer);
-    // initGame();
-    // actionForward(allPlayers[0], 1);
+    hyperSkill3();
 });
 
 let isMobile = () => {
