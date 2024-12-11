@@ -4,148 +4,41 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Combat Scene</title>
-    <style>
-        body, html {
-            margin: 0;
-            padding: 0;
-            overflow: hidden;
-            height: 100%;
-            display: flex;
-            touch-action: none;
-        }
-
-        #left-sidebar {
-            width: 20vw;
-            height: 80vh;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-            overflow-y: scroll;
-        }
-
-        #container {
-            width: 60vw;
-            height: 100vh;
-            background-color: rgba(255, 255, 255, 0.7);
-            display: flex;
-        }
-
-        #right-buttons {
-            width: 20vw;
-            background-color: rgba(0, 0, 0, 0.7);
-            color: white;
-            padding: 10px;
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #status-panel {
-            width: 20vw;
-            background-color: rgba(0, 0, 0, 0.7);
-            font-family: Arial, sans-serif;
-            display: flex;
-            flex-direction: column;
-        }
-
-        button {
-            padding: 10px;
-            margin: 10px;
-            font-size: 16px;
-        }
-
-        #loadingScreen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 1000; /* Ensure it's on top of everything */
-        }
-        #loadingText {
-            color: white;
-            font-size: 2em;
-            margin-bottom: 20px;
-            display: block;
-        }
-        #progressBar {
-            width: 80%;
-            height: 20px;
-            background-color: #ccc;
-            border-radius: 10px;
-            overflow: hidden;
-            display: block;
-        }
-        #progressBarFill {
-            height: 100%;
-            background-color: #76c7c0;
-            width: 0;
-            transition: width 0.5s;
-        }
-        .card {
-            padding: 15px;
-            margin: 10px auto;
-            background-color: #32d632;
-            border-radius: 5px;
-            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
-            opacity: 0;
-            transform: scale(0.9);
-            transition: all 0.5s ease;
-        }
-        .fade-in {
-            opacity: 1;
-            transform: scale(1);
-        }
-        .fade-out {
-            opacity: 0;
-            transform: scale(0.9);
-        }
-        #combat-ui {
-            display: none;
-        }
-        .message-box {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            background-color: rgba(0, 0, 0, 0.8);
-            color: white;
-            padding: 20px;
-            border-radius: 10px;
-            font-size: 16px;
-            opacity: 0;
-            z-index: 1;
-            pointer-events: none; /* Prevent clicks while hidden */
-            transition: opacity 0.5s ease;
-        }
-
-        .message-box.show {
-            opacity: 1;
-            pointer-events: auto;
-        }
-
-        .message-text {
-            margin: 0;
-        }
-    </style>
+    <link rel="stylesheet" href="src/Combat/combat.css">
 </head>
 <body>
-<div id="messageBox" class="message-box">
-    <p id="messageText" class="message-text"></p>
+
+<div id="tutorial-canvas" class="tutorial-canvas">
+    <div id="tutorial-container" class="tutorial-container">
+        <button id="prev-btn" class="nav-btn">←</button>
+        <div class="tutorial-content">
+            <img id="tutorial-image" src="your-image1.jpg" alt="Tutorial Step 1" />
+            <p id="tutorial-text">Step 1: Learn how to navigate!</p>
+        </div>
+        <div class="tutorial-nav">
+            <div id="dot-indicator" class="dot-indicator">
+                <span id="dot-1" class="dot active"></span>
+                <span id="dot-2" class="dot"></span>
+                <span id="dot-3" class="dot"></span>
+                <span id="dot-4" class="dot"></span>
+            </div>
+        </div>
+        <button id="next-btn" class="nav-btn">→</button>
+        <button id="close-btn" class="close-btn">X</button>
+    </div>
 </div>
+
+<ul id="messageList" style="width: 0; height: 100vh">
+    <!-- Messages will be added here -->
+</ul>
+
 <div id="loadingScreen">
     <div id="loadingText">Loading...</div>
     <div id="progressBar">
         <div id="progressBarFill"></div>
     </div>
 </div>
+
 <table id="combat-ui" style="width: 100%; height: 100vh; border-collapse: collapse;">
     <tr>
         <td id="left-sidebar" style="vertical-align: top;">
@@ -176,6 +69,7 @@
         </td>
     </tr>
 </table>
+
 <script type="importmap">
     {
         "imports": {

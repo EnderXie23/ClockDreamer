@@ -1,17 +1,50 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
     <title>Clock Dreamer</title>
-
-    <style>
-        body {
-            margin: 0;
-            overflow: hidden;
-        }
-    </style>
+    <link rel="stylesheet" href="src/ClockGame/clock.css">
 </head>
 <body>
+
+<ul id="messageList" style="width: 0; height: 100vh">
+    <!-- Messages will be added here -->
+</ul>
+
+<div id="tutorial-canvas" class="tutorial-canvas">
+    <div id="tutorial-container" class="tutorial-container">
+        <button id="prev-btn" class="nav-btn">←</button>
+        <div class="tutorial-content">
+            <img id="tutorial-image" src="your-image1.jpg" alt="Tutorial Step 1" />
+            <p id="tutorial-text">Step 1: Learn how to navigate!</p>
+        </div>
+        <div class="tutorial-nav">
+            <div id="dot-indicator" class="dot-indicator">
+                <span id="dot-1" class="dot active"></span>
+                <span id="dot-2" class="dot"></span>
+                <span id="dot-3" class="dot"></span>
+                <span id="dot-4" class="dot"></span>
+            </div>
+        </div>
+        <button id="next-btn" class="nav-btn">→</button>
+        <button id="close-btn" class="close-btn">X</button>
+    </div>
+</div>
+
+<div id="loadingScreen">
+    <div id="loadingText">Loading...</div>
+    <div id="progressBar">
+        <div id="progressBarFill"></div>
+    </div>
+</div>
+
+<div id="operationPanel">
+    <button id="tutorialButton">Tutorial</button>
+</div>
+
 <div id="container"></div>
+
 <script type="importmap">
     {
         "imports": {
@@ -20,6 +53,7 @@
         }
     }
 </script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12/dist/gsap.min.js"></script>
 <script src="src/ClockGame/clock.js" type="module"></script>
 </body>
 </html>

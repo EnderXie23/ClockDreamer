@@ -1,0 +1,255 @@
+body, html {
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    height: 100%;
+    display: flex;
+    touch-action: none;
+}
+
+#left-sidebar {
+    width: 20vw;
+    height: 80vh;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    font-family: Arial, sans-serif;
+    overflow-y: auto;
+    pointer-events: none;
+}
+
+#container {
+    width: 60vw;
+    height: 100vh;
+    background-color: rgba(255, 255, 255, 0.7);
+    display: flex;
+}
+
+#right-buttons {
+    width: 20vw;
+    background-color: rgba(0, 0, 0, 0.7);
+    color: white;
+    padding: 10px;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+}
+
+#status-panel {
+    width: 20vw;
+    background-color: rgba(0, 0, 0, 0.7);
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+}
+
+button {
+    padding: 10px;
+    margin: 10px;
+    font-size: 16px;
+}
+
+#loadingScreen {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000; /* Ensure it's on top of everything */
+}
+
+#loadingText {
+    color: white;
+    font-size: 2em;
+    margin-bottom: 20px;
+    display: block;
+}
+
+#progressBar {
+    width: 80%;
+    height: 20px;
+    background-color: #ccc;
+    border-radius: 10px;
+    overflow: hidden;
+    display: block;
+}
+
+#progressBarFill {
+    height: 100%;
+    background-color: #76c7c0;
+    width: 0;
+    transition: width 0.5s;
+}
+
+.card {
+    padding: 15px;
+    margin: 10px auto;
+    background-color: #32d632;
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    opacity: 0;
+    transform: scale(0.9);
+    transition: all 0.5s ease;
+}
+
+.fade-in {
+    opacity: 1;
+    transform: scale(1);
+}
+
+.fade-out {
+    opacity: 0;
+    transform: scale(0.9);
+}
+
+#combat-ui {
+    display: none;
+}
+
+.message-box {
+    position: static;
+    width: max-content;
+    margin-top: 10px;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    opacity: 0;
+    z-index: 1;
+    transform: translateX(-50%);
+    pointer-events: none; /* Prevent clicks while hidden */
+    transition: opacity 0.5s ease;
+}
+
+.message-box.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.message-text {
+    margin: 0;
+}
+
+#messageList {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+}
+
+.tutorial-canvas {
+    position: fixed;
+    width: 100%;
+    height: 100vh;
+    background: rgba(0, 0, 0, 0.4);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9998;
+    display: none; /* Initially hidden */
+    overflow: hidden;
+}
+
+.tutorial-container {
+    position: fixed;
+    top: 10%;
+    left: 0;
+    width: 100%;
+    height: 80vh;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 9999;
+    overflow: hidden;
+}
+
+/* Content Styling */
+.tutorial-content {
+    text-align: center;
+    width: 80%;
+    flex-grow: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow: hidden;
+    transition: opacity 0.2s ease;
+}
+
+.tutorial-content img {
+    min-width: 60%;
+    max-width: 80%;
+    height: fit-content;
+    min-height: 40%;
+    max-height: 60%;
+    margin-bottom: 20px;
+}
+
+.tutorial-content p {
+    font-size: 1.2rem;
+}
+
+/* Dot Indicator */
+.dot-indicator {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    margin-top: 20px;
+    margin-bottom: 20px;
+}
+
+.dot {
+    width: 15px;
+    height: 15px;
+    background-color: white;
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.dot.active {
+    background-color: #ff0000;
+}
+
+.nav-btn {
+    background-color: rgba(0, 0, 0, 0.5);
+    color: white;
+    border: none;
+    font-size: 2rem;
+    padding: 10px 20px;
+    cursor: pointer;
+    border-radius: 4px;
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+}
+
+#prev-btn {
+    left: 20px;
+}
+
+#next-btn {
+    right: 20px;
+}
+
+/* Close Button */
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 20px;
+    background-color: transparent;
+    color: white;
+    border: none;
+    font-size: 1.5rem;
+    cursor: pointer;
+}

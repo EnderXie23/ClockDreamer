@@ -1,35 +1,42 @@
 import * as THREE from 'three';
 import {Reflector} from "three/addons/objects/Reflector.js";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {MMDLoader} from "three/addons/loaders/MMDLoader";
 
 const loader = new GLTFLoader();
 
 let renderer, scene, camera;
-let destinations = [[2.0, 0.7, -10], [-1, 0.7, 3]];
 let mirror, dragObj = [], spinObj = [];
 
 // Layer configuration
 const MAIN_LAYER = 0;
 const NO_REF_LAYER = 1; // No reflection layer
 
-// goalstage for each step
-let goals = [0, 0];
+// game data is stored here
 let lights = [], model;
-
+let gameData, loadedModels;
+let goalInd = 0;
 let data = {
+    trail: [
+        [-1, 0, 3], [-1, 0, 2], [-1, 0, 1], [-1, 0, 0],
+        [-7, 0, 3],
+        [2, 0, -11], [1, 0, -11], [0, 0, -11], [-1, 0, -11]
+    ],
+    destinations: [[2.0, 0.7, -11], [-1, 0.7, 3]],
     dragObj: [
         {
             shape: [{x: 0, y: 0, z: 0}, {x: 0, y: 0, z: 1}, {x: 0, y: 0, z: 2}, {x: 0, y: 0, z: 3}],
             position: [-7, 0, -3],
             axis: 'z',
-            clip: [-6, -2],
-            goalPositions: [-2, 999]
+            clip: [-6, -1],
+            goalPositions: [-1, 999],
+            offset: 0,
         },
     ],
     spinObj: [
         {
             shape: [{x: 0, y: 0, z: 0}, {x: 1, y: 0, z: 0}, {x: 2, y: 0, z: 0}, {x: 3, y: 0, z: 0}, {x: 4, y: 0, z: 0}, {x: 5, y: 0, z: 0}],
-            position: [-1, 0, -2],
+            position: [-1, 0, -1],
             state: 0,
             clip: [1, 1],
             goalStates: [2, 1]
@@ -38,13 +45,14 @@ let data = {
     mirror: {
         position: [0, 0, -6],
         clip: [-4, 3],
-        goalStates: [999, -1],
+        goalStates: [999, -0.7],
+        offset: 0.3,
     },
     lights: [
         {
             position: [-1, 1.5, 3],
             color: `rgb(255, 246, 178)`,
-            show: 0,
+            show: 1,
             size: 0.1,
             amplitude: 0.1,
             frequency: 10
@@ -52,7 +60,7 @@ let data = {
         {
             position: [2, 1.5, -10],
             color: `rgb(255, 246, 178)`,
-            show: 0,
+            show: 1,
             size: 0.1,
             amplitude: 0.1,
             frequency: 10
@@ -60,15 +68,25 @@ let data = {
     ],
     model: {
         position: [-5.5, 0.2, 4],
-        loadPath: 'data/objects/character/plant1.glb'
+        loadPath: 'data/objects/character/plant1.glb',
+        animationStages: [
+            [
+                {target: new THREE.Vector3(-5.5, 0.2, 1), duration: 0.5},
+                {target: new THREE.Vector3(-0.5, 0.2, 1), duration: 0.5},
+                {target: new THREE.Vector3(-0.5, 0.2, 4), duration: 0.5}
+            ],
+            [
+                {target: new THREE.Vector3(-0.5, 0.2, 4), duration: 0.5},  // 阶段1
+                {target: new THREE.Vector3(-0.5, 0.2, -7), duration: 0.5},  // 阶段2
+                {target: new THREE.Vector3(1.7, 0.2, -7), duration: 0.5}   // 阶段3
+            ]
+        ]
     }
 }
 
 // Global variables for animation
 let animationInProgress = false;
-let totalRotation = 0;
-let targetRotation = 0;
-let rotationDirection = 1;
+let totalRotation = 0, targetRotation = 0, rotationDirection = 1;
 let dragging = false;
 let selectedObject = null;
 
@@ -118,115 +136,156 @@ class Light {
 }
 
 class Model {
-    constructor(startX, startY, startZ, loadpath, scene) {
+    constructor(startX, startY, startZ) {
         this.startX = startX;
         this.startY = startY;
         this.startZ = startZ;
-        this.loadPath = loadpath;  // 模型加载路径
-        this.model = null;  // 用于存储加载的模型
+        this.model = loadedModels[0];
         this.isLoaded = false; // 模型加载标志
         this.isAnimating = false; // 动画状态标志
-        this.animationStartTime = 0; // 动画开始时间
-        this.animationDuration = 0.5; // 增加动画持续时间，使动画更慢
-        this.scene = scene;
-        this.animationStages = [
-            {target: new THREE.Vector3(-5.5, 0.2, 0), duration: 0.5},  // 阶段1，增加时间
-            {target: new THREE.Vector3(-0.5, 0.2, 0), duration: 0.5},  // 阶段2，增加时间
-            {target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5}   // 阶段3，增加时间
-        ];
-        this.currentStage = 0; // 当前阶段
-        this.stageStartTime = 0; // 当前阶段开始时间
+        this.currentStage = 0;  // 当前动画阶段
+        this.animationStages = [];
+        this.model.position.set(this.startX, this.startY, this.startZ);
+        scene.add(this.model);
+    }
+}
 
+function loadFromFile(path) {
+    return new Promise((resolve, reject) => {
+        fetch(path)
+            .then(response => {
+                if (!response.ok) {
+                    console.error("Failed to load file");
+                    reject(new Error("Failed to load file"));
+                } else {
+                    return response.json();
+                }
+            })
+            .then(data => resolve(data))
+            .catch(error => {
+                console.error(error);
+                reject(error);
+            });
+    });
+}
 
-        // 使用GLTFLoader加载模型
-        loader.load(this.loadPath, (gltf) => {
-            this.model = gltf.scene;  // 获取加载后的模型
-            this.model.position.set(this.startX, this.startY, this.startZ);  // 设置模型的初始位置
-            this.scene.add(this.model);  // 将模型添加到场景中
-            this.isLoaded = true;  // 标记模型已加载
-        }, undefined, (error) => {
-            console.error("加载模型时出错", error);
+function loadModel(url) {
+    return new Promise((resolve, reject) => {
+        let loader, res;
+        if (url.includes('.pmx'))
+            loader = new MMDLoader();
+        else
+            loader = new GLTFLoader();
+        loader.load(url, (model) => {
+            if (url.includes('.pmx')) {
+                model.scale.setScalar(0.1);
+                res = model;
+            } else {
+                // model.scene.children[0].scale.set(1.2, 1.2, 1.2);
+                res = model.scene.children[0];
+            }
+            resolve(res);
+        }, (xhr) => {
+            document.getElementById('progressBarFill').style.width
+                = `${(xhr.loaded / xhr.total) * 100}%`;
+        }, (error) => {
+            console.error(error);
+            reject(error);
         });
-    }
+    });
+}
 
-    // 动画方法
-    animate() {
-        // 第一个动画 (goal1 == 1)
-        if (goals[0] === 1 && !this.isAnimating && this.isLoaded) {
-            animationInProgress = true;
-            this.isAnimating = true;  // 标记动画开始
-            this.stageStartTime = Date.now();  // 记录动画开始时间
+function loadGameData(key) {
+    return new Promise((resolve) => {
+        const gameData = JSON.parse(localStorage.getItem(key));
+        if (gameData) {
+            resolve(gameData);
+        } else {
+            console.warn('No data: ' + key + ' found in localStorage.');
+            resolve(null);
         }
+    });
+}
 
-        // 如果正在进行动画
-        if (this.isAnimating && goals[0] === 1) {
-            const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
-            const currentStage = this.animationStages[this.currentStage];
-            const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
+function resolveGameData() {
 
-            // 线性插值，平滑过渡
-            this.model.position.lerpVectors(
-                this.model.position,  // 当前的位置
-                currentStage.target,   // 目标位置
-                progress               // 进度
-            );
+}
 
-            // 如果当前阶段的动画完成，切换到下一个阶段
-            if (progress === 1) {
-                this.currentStage++;  // 进入下一个阶段
-                if (this.currentStage >= this.animationStages.length) {
-                    this.isAnimating = false;  // 所有阶段完成
-                    goals[0] = 2;
-                    lights[0].show = 1;
-                    animationInProgress = false;
-                } else {
-                    // 更新动画开始时间，继续下一个阶段
-                    this.stageStartTime = Date.now();
+function loadAllAssets() {
+    const dataKeys = ['gameData'];
+    const modelURLs = ['data/objects/character/plant1.glb'];
+
+    const gameDataPromises = dataKeys.map(key => loadGameData(key));
+    const modelPromises = modelURLs.map(url => loadModel(url));
+
+    Promise.all([...gameDataPromises, ...modelPromises])
+        .then((results) => {
+            gameData = results.slice(0, dataKeys.length)[0];
+            loadedModels = results.slice(dataKeys.length, dataKeys.length + modelURLs.length);
+
+            console.log("Loaded game data: ", gameData);
+            console.log("Loaded models: ", loadedModels);
+            resolveGameData();
+
+            const path = "data/clock/clock1.json";
+            const dataPaths = [path];
+            const dataPromises = dataPaths.map(path => loadFromFile(path));
+            Promise.all([...dataPromises])
+                .then((results2) => {
+                    data = results2[0];
+                    console.log("Loaded data: ", data);
+                    init();
+
+                    document.getElementById('loadingScreen').style.display = 'none';
+                })
+                .catch((error) => {
+                    console.log("An error occurred while loading assets:", error);
+                });
+        })
+        .catch((error) => {
+            console.log("An error occurred while loading assets:", error);
+        });
+}
+
+function handleWin(){
+    showMessage("Congratulations! You have completed the game!", 3000, 1);
+    animationInProgress = true;
+
+    let updateGameData = {
+        level: gameData.level,
+        score: gameData.score + 500,
+        state: "win",
+    }
+    localStorage.setItem('gameData', JSON.stringify(updateGameData));
+    console.log("Game data update:" + JSON.stringify(updateGameData));
+
+    setTimeout(() => {
+        window.location.href = "world.html";
+    }, 1000);
+}
+
+function moveToGoal(){
+    gsap.to(model.model.position, {
+        x: model.animationStages[model.currentStage].target.x,
+        y: model.animationStages[model.currentStage].target.y,
+        z: model.animationStages[model.currentStage].target.z,
+        duration: model.animationStages[model.currentStage].duration,
+        ease: "power2.inOut",
+        onComplete: () => {
+            model.currentStage++;
+            if (model.currentStage >= model.animationStages.length) {
+                lights[goalInd].show = 0;
+                animationInProgress = false;
+                model.currentStage = 0;
+                goalInd++;
+                if(goalInd === data.destinations.length){
+                    handleWin();
                 }
+            } else {
+                moveToGoal();
             }
         }
-
-        // 第二个动画 (goal2 == 1)
-        if (goals[1] === 1 && !this.isAnimating) {
-            animationInProgress = true;
-            this.isAnimating = true;  // 标记动画开始
-            this.stageStartTime = Date.now();  // 记录动画开始时间
-            this.animationStages = [ // 重置动画阶段为goal2的动画
-                {target: new THREE.Vector3(-0.5, 0.6, 4), duration: 0.5},  // 阶段1
-                {target: new THREE.Vector3(-0.5, 0.2, -6), duration: 0.5},  // 阶段2
-                {target: new THREE.Vector3(1.7, 0.6, -6), duration: 0.5}   // 阶段3
-            ];
-            this.currentStage = 0; // 重置为第一个阶段
-        }
-
-        // 如果正在进行动画
-        if (this.isAnimating && goals[1] === 1) {
-            const elapsedTime = (Date.now() - this.stageStartTime) / 1000;  // 计算经过的时间（秒）
-            const currentStage = this.animationStages[this.currentStage];
-            const progress = Math.min(elapsedTime / currentStage.duration, 1);  // 计算进度
-
-            // 线性插值，平滑过渡
-            this.model.position.lerpVectors(
-                this.model.position,  // 当前的位置
-                currentStage.target,   // 目标位置
-                progress               // 进度
-            );
-
-            // 如果当前阶段的动画完成，切换到下一个阶段
-            if (progress === 1) {
-                this.currentStage++;  // 进入下一个阶段
-                if (this.currentStage >= this.animationStages.length) {
-                    this.isAnimating = false;  // 所有阶段完成
-                    goals[1] = 2;
-                    lights[1].show = 1;
-                    animationInProgress = false;
-                } else {
-                    // 更新动画开始时间，继续下一个阶段
-                    this.stageStartTime = Date.now();
-                }
-            }
-        }
-    }
+    });
 }
 
 function init(){
@@ -269,6 +328,7 @@ function init(){
     });
     mirror.position.set(data.mirror.position[0], data.mirror.position[1], data.mirror.position[2]);
     mirror.goalStates = data.mirror.goalStates;
+    mirror.offset = data.mirror.offset;
     mirror.material.transparent = true;
     mirror.material.opacity = 0.9;
     scene.add(mirror);
@@ -289,6 +349,7 @@ function init(){
         dragGroup.position.set(obj.position[0], obj.position[1], obj.position[2]);
         dragGroup.axis = obj.axis;
         dragGroup.clip = obj.clip;
+        dragGroup.offset = obj.offset;
         dragGroup.goalPositions = obj.goalPositions;
         scene.add(dragGroup);
         dragObj.push(dragGroup);
@@ -328,16 +389,40 @@ function init(){
         lights.push(lightPoint);
     })
 
-    model = new Model(data.model.position[0], data.model.position[1], data.model.position[2], data.model.loadPath, scene);
+    model = new Model(data.model.position[0], data.model.position[1], data.model.position[2]);
+
+    createTrail();
+    animate();
 }
 
 function animate() {
     handleGoals();
     lights.forEach(light => light.animate());
-    model.animate();
     renderer.render(scene, camera);
 
     requestAnimationFrame(animate);
+}
+
+function showMessage(message, duration = 1500, mode = 1) {
+    const messageList = document.getElementById('messageList');
+
+    const messageBox = document.createElement('div');
+    messageBox.classList.add('message-box');
+    messageBox.innerHTML = "<p class=\"message-text\">" + message + "</p>";
+    messageList.appendChild(messageBox);
+    messageBox.classList.add('show');
+    if (mode === 2) {
+        messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
+    } else {
+        messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
+    }
+
+    setTimeout(() => {
+        messageBox.classList.remove('show');
+        setTimeout(() => {
+            messageList.removeChild(messageBox);
+        }, 500);
+    }, duration - 500);
 }
 
 function renderRotation(ind) {
@@ -351,7 +436,7 @@ function renderRotation(ind) {
         if (totalRotation < Math.abs(targetRotation)) {
             spinObj[ind].rotation.y += rotationSpeed;
             totalRotation += Math.abs(rotationSpeed);
-        } else if (!model.isAnimating) {
+        } else {
             animationInProgress = false;
             return;
         }
@@ -365,39 +450,18 @@ function createTrail() {
     const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
     const trailWidth = 1;
 
-    // Create multiple segments to represent the trail
-    for (let i = 0; i < 5; i++) {
+    data.trail.forEach((pos) => {
         const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
+            new THREE.BoxGeometry(trailWidth, 1, 1),
             trailMaterial
         );
-        trailSegment.position.set(-1, 0, 3 - i);  // Spread segments along the Z axis
-        trailSegment.layers.set(NO_REF_LAYER);
-        scene.add(trailSegment);
-    }
-
-    for (let i = 0; i < 2; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
-        );
-        trailSegment.position.set(-7, 0, 3 - i);  // Spread segments along the Z axis
+        trailSegment.position.set(pos[0], pos[1], pos[2]);
         scene.add(trailSegment);
         trailSegment.layers.set(NO_REF_LAYER);
-    }
-
-    for (let i = 0; i < 4; i++) {
-        const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),  // Width, height, length of each trail segment
-            trailMaterial
-        );
-        trailSegment.position.set(2 - i, 0, -10);  // Spread segments along the Z axis
-        scene.add(trailSegment);
-        trailSegment.layers.set(NO_REF_LAYER);
-    }
+    });
 
     const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
-    destinations.forEach((dest) => {
+    data.destinations.forEach((dest) => {
         const destination = new THREE.Mesh(
             new THREE.BoxGeometry(0.8, 0.1, 0.8),
             destinationMaterial
@@ -410,16 +474,10 @@ function createTrail() {
 
 function handleGoals() {
     if(animationInProgress || dragging) return;
-    let goalInd = 0;
-    while(goals[goalInd] === 2) {
-        goalInd++;
-        if(goalInd === goals.length) return;
-    }
 
     let flag = true;
     dragObj.forEach((obj) => {
         if (obj.axis === 'z'){
-            // console.log(obj.position.z, obj.goalPositions[goalInd]);
             if(obj.position.z !== obj.goalPositions[goalInd] && obj.goalPositions[goalInd] !== 999) {
                 flag = false;
             }
@@ -440,25 +498,38 @@ function handleGoals() {
         flag = false;
     }
 
-    goals[goalInd] = flag ? 1 : 0;
+    if(flag === true && !animationInProgress) {
+        model.animationStages = data.model.animationStages[goalInd];
+        animationInProgress = true;
+        moveToGoal();
+    }
 }
 
-init();
-createTrail();
-animate();
+loadAllAssets();
 
 // Keyboard event listener
 window.addEventListener('mousedown', onMouseDown, false);
+window.addEventListener('touchstart', onMouseDown, false);
 window.addEventListener('mousemove', onMouseMove, false);
+window.addEventListener('touchmove', onMouseMove, false);
 window.addEventListener('mouseup', onMouseUp, false);
+window.addEventListener('touchend', onMouseUp, false);
 
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
-    if(animationInProgress) return;
+    if(animationInProgress) {
+        console.log("Animation in progress");
+        return;
+    }
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    if (isMobile()){
+        mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+    } else {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
 
     // Update the rayCaster with camera and mouse position
     raycaster.setFromCamera(mouse, camera);
@@ -513,8 +584,13 @@ function onMouseMove(event) {
     if (!dragging || animationInProgress) return;
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
-    mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
-    mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    if (isMobile()){
+        mouse.x = (event.touches[0].clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.touches[0].clientY / window.innerHeight) * 2 + 1;
+    } else {
+        mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+        mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+    }
 
     // Update rayCaster to match the new mouse position
     raycaster.setFromCamera(mouse, camera);
@@ -560,12 +636,12 @@ function onMouseUp() {
     if (dragObj.includes(selectedObject)) {
         // Snap the yellow block to the nearest grid position
         if(selectedObject.axis === 'z')
-            selectedObject.position.z = Math.round(selectedObject.position.z);
+            selectedObject.position.z = Math.round(selectedObject.position.z) + selectedObject.offset;
         else if(selectedObject.axis === 'x')
-            selectedObject.position.x = Math.round(selectedObject.position.x);
+            selectedObject.position.x = Math.round(selectedObject.position.x) + selectedObject.offset;
     } else if (selectedObject === mirror) {
         // Snap the mirror to the nearest grid position
-        mirror.position.x = Math.round(mirror.position.x);
+        mirror.position.x = Math.round(mirror.position.x) + mirror.offset;
     }
     console.log("mirror position:", mirror.position.x);
     dragObj.forEach(obj => {
@@ -587,3 +663,157 @@ window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
+
+// Tutorial
+const tutorialCanvas = document.getElementById("tutorial-canvas");
+const tutorialContainer = document.getElementById("tutorial-container");
+const prevBtn = document.getElementById("prev-btn");
+const nextBtn = document.getElementById("next-btn");
+const closeBtn = document.getElementById("close-btn");
+let isSwiping = false, startX = 0;
+
+const tutorialText = document.getElementById("tutorial-text");
+const tutorialImage = document.getElementById("tutorial-image");
+const dotIndicator = document.getElementById("dot-indicator");
+
+let currentPage = 0;
+const totalPages = 4; // Adjust this based on the number of tutorial steps
+
+// Tutorial Data (You can add more steps as needed)
+const tutorialData = [
+    {
+        image: "data/tutorial/clock/intro.png",
+        text: "The clock dreamer game is all about visual illusions and spatial reasoning."
+    },
+    {
+        image: "data/tutorial/clock/blocks.png",
+        text: "You can see some yellow and red blocks in the game.\n" +
+            "You can drag the yellow blocks along one axis.\n" +
+            "You can rotate the red blocks by clicking on them."
+    },
+    {
+        image: "data/tutorial/clock/mirror.png",
+        text: "This is a mirror, you can move it along the X-axis.\n" +
+            "The mirror reflects the colored blocks, forming a path that did not exist."
+    },
+    {
+        image: "data/tutorial/clock/goal.png",
+        text: "Your final goal is to arrange the colored blocks such that they form a path to the light.\n" +
+            "Be careful about the mirror! It can be tricky~"
+    }
+];
+
+// Function to update the tutorial display
+function updateTutorial() {
+    // fade-in and fade-out animation
+    const tutorialContent = document.querySelector('.tutorial-content');
+    tutorialContent.style.opacity = 0;
+    // Update dot indicator
+    const dots = dotIndicator.getElementsByClassName("dot");
+    for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.remove("active");
+    }
+    dots[currentPage].classList.add("active");
+
+    setTimeout(() =>{
+        const { image, text } = tutorialData[currentPage];
+        tutorialImage.src = image;
+        tutorialText.textContent = text;
+        tutorialText.innerHTML = tutorialText.innerHTML.replace(/\n/g, '<br>');
+        tutorialContent.style.opacity = 1;
+    }, 200);
+}
+
+// Close button functionality
+closeBtn.addEventListener("click", () => {
+    tutorialCanvas.style.display = "none"; // Hide the tutorial
+});
+
+document.getElementById("tutorialButton").addEventListener("click", () => {
+    showTutorial();
+});
+
+tutorialContainer.addEventListener('mousedown', (e) => {
+    startX = e.clientX;
+    isSwiping = true;
+});
+
+// Navigation buttons functionality
+prevBtn.addEventListener("click", () => {
+    if (currentPage > 0) {
+        currentPage--;
+        updateTutorial();
+    }
+});
+
+nextBtn.addEventListener("click", () => {
+    if (currentPage < totalPages - 1) {
+        currentPage++;
+        updateTutorial();
+    }
+});
+
+tutorialContainer.addEventListener('mousemove', (e) => {
+    if (isSwiping) {
+        const moveX = e.clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('mouseup', () => {
+    isSwiping = false;
+});
+
+tutorialContainer.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+});
+
+tutorialContainer.addEventListener('touchmove', (e) => {
+    if (isSwiping) {
+        const moveX = e.touches[0].clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('touchend', () => {
+    isSwiping = false;
+});
+
+// Initial tutorial setup
+function showTutorial() {
+    tutorialCanvas.style.display = "flex"; // Show the tutorial
+    updateTutorial();
+}
+
+let isMobile = () => {
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/));
+    if (isMobile === true) {
+        return isMobile;
+    } else {
+        let check = false;
+        ((a) => {
+            if (/(android|bb\d+|meego).+mobile|avantgo|bada\/|blackberry|blazer|compal|elaine|fennec|hiptop|iemobile|ip(hone|od)|iris|kindle|lge |maemo|midp|mmp|mobile.+firefox|netfront|opera m(ob|in)i|palm( os)?|phone|p(ixi|re)\/|plucker|pocket|psp|series([46])0|symbian|treo|up\.(browser|link)|vodafone|wap|windows ce|xda|xiino|android|ipad|playbook|silk/i.test(a) || /1207|6310|6590|3gso|4thp|50[1-6]i|770s|802s|a wa|abac|ac(er|oo|s-)|ai(ko|rn)|al(av|ca|co)|amoi|an(ex|ny|yw)|aptu|ar(ch|go)|as(te|us)|attw|au(di|-m|r |s )|avan|be(ck|ll|nq)|bi(lb|rd)|bl(ac|az)|br([ev])w|bumb|bw-([nu])|c55\/|capi|ccwa|cdm-|cell|chtm|cldc|cmd-|co(mp|nd)|craw|da(it|ll|ng)|dbte|dc-s|devi|dica|dmob|do([cp])o|ds(12|-d)|el(49|ai)|em(l2|ul)|er(ic|k0)|esl8|ez([4-7]0|os|wa|ze)|fetc|fly([-_])|g1 u|g560|gene|gf-5|g-mo|go(\.w|od)|gr(ad|un)|haie|hcit|hd-([mpt])|hei-|hi(pt|ta)|hp( i|ip)|hs-c|ht(c([- _agpst])|tp)|hu(aw|tc)|i-(20|go|ma)|i230|iac([ \-\/])|ibro|idea|ig01|ikom|im1k|inno|ipaq|iris|ja([tv])a|jbro|jemu|jigs|kddi|keji|kgt([ \/])|klon|kpt |kwc-|kyo([ck])|le(no|xi)|lg( g|\/([klu])|50|54|-[a-w])|libw|lynx|m1-w|m3ga|m50\/|ma(te|ui|xo)|mc(01|21|ca)|m-cr|me(rc|ri)|mi(o8|oa|ts)|mmef|mo(01|02|bi|de|do|t([- ov])|zz)|mt(50|p1|v )|mwbp|mywa|n10[0-2]|n20[2-3]|n30([02])|n50([025])|n7(0([01])|10)|ne(([cm])-|on|tf|wf|wg|wt)|nok([6i])|nzph|o2im|op(ti|wv)|oran|owg1|p800|pan([adt])|pdxg|pg(13|-([1-8]|c))|phil|pire|pl(ay|uc)|pn-2|po(ck|rt|se)|prox|psio|pt-g|qa-a|qc(07|12|21|32|60|-[2-7]|i-)|qtek|r380|r600|raks|rim9|ro(ve|zo)|s55\/|sa(ge|ma|mm|ms|ny|va)|sc(01|h-|oo|p-)|sdk\/|se(c([-01])|47|mc|nd|ri)|sgh-|shar|sie([-m])|sk-0|sl(45|id)|sm(al|ar|b3|it|t5)|so(ft|ny)|sp(01|h-|v-|v )|sy(01|mb)|t2(18|50)|t6(00|10|18)|ta(gt|lk)|tcl-|tdg-|tel([im])|tim-|t-mo|to(pl|sh)|ts(70|m-|m3|m5)|tx-9|up(\.b|g1|si)|utst|v400|v750|veri|vi(rg|te)|vk(40|5[0-3]|-v)|vm40|voda|vulc|vx(52|53|60|61|70|80|81|83|85|98)|w3c([- ])|webc|whit|wi(g |nc|nw)|wmlb|wonu|x700|yas-|your|zeto|zte-/i.test(a.substr(0, 4)))
+                check = true;
+        })(navigator.userAgent || navigator.vendor || window.opera);
+        return check;
+    }
+}

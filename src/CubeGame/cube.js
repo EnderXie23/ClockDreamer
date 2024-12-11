@@ -113,11 +113,11 @@ function loadAllAssets() {
 
 function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 2) {
-        showMessage("Wrong game state.", 2);
+        showMessage("Wrong game state.", 1500, 2);
         setTimeout(() => {
-            window.location.href = "path.html";
+            // window.location.href = "path.html";
         }, 1000);
-        return new Error("Wrong game state");
+        // return new Error("Wrong game state");
     }
     if (!gameData.param) {
         gameData.param = 3;
@@ -160,12 +160,7 @@ function init() {
     controls.maxDistance = 10;
     controls.minDistance = 4;
 
-    if(isMobile()){
-        document.getElementById("operationPanel").style.display = "flex";
-    }
-
     initGame();
-
     animate();
 }
 
@@ -177,6 +172,7 @@ function initGame() {
     initVis = data.initVis;
     cubesLeft = maxCubes - initCubes;
     showMessage("Welcome! You have " + cubesLeft + " cubes left to place.");
+    document.getElementById("cubeCnt").innerHTML = cubesLeft;
     addIndicator();
 
     // Render Initial cubes
@@ -322,12 +318,13 @@ function judge() {
 }
 
 // Function to show a message
-function showMessage(message, mode = 1) {
-    const messageBox = document.getElementById('messageBox');
-    const messageText = document.getElementById('messageText');
+function showMessage(message, duration = 1500, mode = 1) {
+    const messageList = document.getElementById('messageList');
 
-    // Set the message text dynamically
-    messageText.innerHTML = message;
+    const messageBox = document.createElement('div');
+    messageBox.classList.add('message-box');
+    messageBox.innerHTML = "<p class=\"message-text\">" + message + "</p>";
+    messageList.appendChild(messageBox);
     messageBox.classList.add('show');
     if (mode === 2) {
         messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
@@ -335,11 +332,12 @@ function showMessage(message, mode = 1) {
         messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
     }
 
-
-    // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 2000);  // Message disappears after 3 seconds
+        setTimeout(() => {
+            messageList.removeChild(messageBox);
+        }, 500);
+    }, duration - 500);
 }
 
 // Handle mouse down event (selecting objects)
@@ -382,6 +380,7 @@ function onMouseDown(event) {
         targetCube = null;
         if (cubesLeft > 0) cubesLeft--;
         showMessage("You have " + cubesLeft + " cubes left to place.");
+        document.getElementById("cubeCnt").innerHTML = cubesLeft;
     } else {
         // Show its adjacent cubes
         hideAdjacentCubes();
@@ -453,15 +452,17 @@ window.addEventListener('touchend', onMouseUp, false);
 window.addEventListener('keydown', (event) => {
     if (event.key === 'r') {
         initGame();
-        showMessage("Game reset. You have " + cubesLeft + " cubes left to place.");
+        showMessage("Game reset.");
     }
     if (event.key === 'z') {
         if (!lastPlaceCube) {
-            showMessage("No cubes to undo.", 2);
+            showMessage("No cubes to undo.", 1500, 2);
             return;
         }
         lastPlaceCube.userData.visibilityState = visibilityStates.HIDDEN;
         cubesLeft++;
+        showMessage("You have " + cubesLeft + " cubes left to place.");
+        document.getElementById("cubeCnt").innerHTML = cubesLeft;
         lastPlaceCube = null;
     }
     if(event.key === 't'){
@@ -472,16 +473,18 @@ window.addEventListener('keydown', (event) => {
 // Mobile controls
 document.getElementById("undoButton").addEventListener('click', () => {
     if (!lastPlaceCube) {
-        showMessage("No cubes to undo.", 2);
+        showMessage("No cubes to undo.", 1500, 2);
         return;
     }
     lastPlaceCube.userData.visibilityState = visibilityStates.HIDDEN;
     cubesLeft++;
+    showMessage("You have " + cubesLeft + " cubes left to place.");
+    document.getElementById("cubeCnt").innerHTML = cubesLeft;
     lastPlaceCube = null;
 });
 document.getElementById("resetButton").addEventListener('click',() => {
     initGame();
-    showMessage("Game reset. You have " + cubesLeft + " cubes left to place.");
+    showMessage("Game reset.");
 });
 
 // Handle window resizing
@@ -491,8 +494,150 @@ window.addEventListener('resize', function () {
     camera.updateProjectionMatrix();
 });
 
+// Tutorial
+const tutorialCanvas = document.getElementById("tutorial-canvas");
+const tutorialContainer = document.getElementById("tutorial-container");
+const prevBtn = document.getElementById("prev-btn");
+const nextBtn = document.getElementById("next-btn");
+const closeBtn = document.getElementById("close-btn");
+let isSwiping = false, startX = 0;
+
+const tutorialText = document.getElementById("tutorial-text");
+const tutorialImage = document.getElementById("tutorial-image");
+const dotIndicator = document.getElementById("dot-indicator");
+
+let currentPage = 0;
+const totalPages = 4; // Adjust this based on the number of tutorial steps
+
+// Tutorial Data (You can add more steps as needed)
+const tutorialData = [
+    {
+        image: "data/tutorial/cube/intro.png",
+        text: "The cube game is designed to test your spatial reasoning skills. The basic layout is a 3*3*3 cube.\n" +
+            "You can drag the scene around to view the cube from different angles."
+    },
+    {
+        image: "data/tutorial/cube/goal.png",
+        text: "The final goal is to place the cubes in such a way that the projection of the cubes on the two planes match.\n" +
+            "The colored faces shall be matched, while the wireframe faces shall not be matched.\n"+
+            "The green faces are already correctly placed, and the red ones indicate incorrect placement."
+    },
+    {
+        image: "data/tutorial/cube/click.png",
+        text: "Click on an existing cube, and you can see the adjacent cubes that can be placed.\n" +
+            "Click on the adjacent cube to place a new cube."
+    },
+    {
+        image: "data/tutorial/cube/buttons.png",
+        text: "The total number of cubes you can place is limited.\n" +
+            "You can reset the game by clicking the reset button or pressing key 'r'.\n" +
+            "You can undo the last cube placement by clicking the undo button or pressing key 'z'."
+    }
+];
+
+// Function to update the tutorial display
+function updateTutorial() {
+    // fade-in and fade-out animation
+    const tutorialContent = document.querySelector('.tutorial-content');
+    tutorialContent.style.opacity = 0;
+    // Update dot indicator
+    const dots = dotIndicator.getElementsByClassName("dot");
+    for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.remove("active");
+    }
+    dots[currentPage].classList.add("active");
+
+    setTimeout(() =>{
+        const { image, text } = tutorialData[currentPage];
+        tutorialImage.src = image;
+        tutorialText.textContent = text;
+        tutorialText.innerHTML = tutorialText.innerHTML.replace(/\n/g, '<br>');
+        tutorialContent.style.opacity = 1;
+    }, 200);
+}
+
+// Close button functionality
+closeBtn.addEventListener("click", () => {
+    tutorialCanvas.style.display = "none"; // Hide the tutorial
+});
+
+document.getElementById("tutorialButton").addEventListener("click", () => {
+    showTutorial();
+});
+
+tutorialContainer.addEventListener('mousedown', (e) => {
+    startX = e.clientX;
+    isSwiping = true;
+});
+
+// Navigation buttons functionality
+prevBtn.addEventListener("click", () => {
+    if (currentPage > 0) {
+        currentPage--;
+        updateTutorial();
+    }
+});
+
+nextBtn.addEventListener("click", () => {
+    if (currentPage < totalPages - 1) {
+        currentPage++;
+        updateTutorial();
+    }
+});
+
+tutorialContainer.addEventListener('mousemove', (e) => {
+    if (isSwiping) {
+        const moveX = e.clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('mouseup', () => {
+    isSwiping = false;
+});
+
+tutorialContainer.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+});
+
+tutorialContainer.addEventListener('touchmove', (e) => {
+    if (isSwiping) {
+        const moveX = e.touches[0].clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('touchend', () => {
+    isSwiping = false;
+});
+
+// Initial tutorial setup
+function showTutorial() {
+    tutorialCanvas.style.display = "flex"; // Show the tutorial
+    updateTutorial();
+}
+
 let isMobile = () => {
-    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/));
     if (isMobile === true) {
         return isMobile;
     } else {

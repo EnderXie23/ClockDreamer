@@ -9,6 +9,10 @@ let gameData, playerData, bgm;
 const audioLoader = new THREE.AudioLoader();
 const listener = new THREE.AudioListener();
 
+// Function to handle swipes (drag or touch)
+let startX = 0;
+let isSwiping = false;
+
 // Action sequence panel
 const actionContainer = document.getElementById('action-sequence');
 
@@ -76,7 +80,7 @@ let currentVal = 0;
 let round = 0;
 
 // For target selection
-let handleClick, handleKeyDown;
+let handleClick, handleKeyDown, handleSwipe, handleTouchEnd;
 let attackMethod = 1; // 1: atk 2: skill 3: hyperSkill
 let currentTarget, currentTargetCube;
 let selectionIndicator;
@@ -130,7 +134,7 @@ function loadGameData(key) {
         if (gameData) {
             resolve(gameData);
         } else {
-            console.warn('No data: ' + key + ' found in localStorage.');
+            console.error('No data: ' + key + ' found in localStorage.');
             // resolve({});
             reject();
         }
@@ -170,6 +174,7 @@ function loadAllAssets() {
 
     Promise.all([...texturePromises, ...modelPromises, ...gameDataPromise])
         .then((results) => {
+            console.log(results);
             loadedTextures = results.slice(0, texturePromises.length);
             loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
             const loadedData = results.slice(texturePromises.length + modelPromises.length
@@ -195,7 +200,7 @@ function loadAllAssets() {
 
 function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 1) {
-        showMessage("Wrong game state", 2);
+        showMessage("Wrong game state", 1500, 2);
         setTimeout(() => {
             // window.location.href = "path.html";
         }, 1000);
@@ -211,7 +216,9 @@ function resolveGameData() {
         enemy.maxHp += 1000 * level;
         enemy.speed += 10 * level;
     });
-    showMessage('Welcome to difficulty level ' + level);
+    setTimeout(() => {
+        showMessage('Welcome to difficulty level ' + level);
+    }, 1000);
 
     initPlayers = [];
     playerData.forEach(player => {
@@ -277,8 +284,8 @@ function init() {
     camera.add(listener);
 
     resolveGameData();
-    animate();
     initGame();
+    animate();
 }
 
 function initGame() {
@@ -497,11 +504,12 @@ function clearActions() {
 
 // Function to show a message
 function showMessage(message, duration = 1500, mode = 1) {
-    const messageBox = document.getElementById('messageBox');
-    const messageText = document.getElementById('messageText');
+    const messageList = document.getElementById('messageList');
 
-    // Set the message text dynamically
-    messageText.innerHTML = message;
+    const messageBox = document.createElement('div');
+    messageBox.classList.add('message-box');
+    messageBox.innerHTML = "<p class=\"message-text\">" + message + "</p>";
+    messageList.appendChild(messageBox);
     messageBox.classList.add('show');
     if (mode === 2) {
         messageBox.style.backgroundColor = "rgba(255, 0, 0, 1)";
@@ -511,7 +519,10 @@ function showMessage(message, duration = 1500, mode = 1) {
 
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, duration);
+        setTimeout(() => {
+            messageList.removeChild(messageBox);
+        }, 500);
+    }, duration - 500);
 }
 
 // Screen shaker
@@ -826,13 +837,44 @@ function targetSelector(targetType) {
         window.removeEventListener('click', handleClick);
     }
 
-    if (handleKeyDown) {
+    if (handleSwipe)
+        window.removeEventListener('touchmove', handleSwipe);
+
+    if (handleTouchEnd)
+        window.removeEventListener('touchend', handleTouchEnd);
+
+    if (handleKeyDown)
         window.removeEventListener('keydown', handleKeyDown);
-    }
+
 
     handleClick = function (event) {
         if (selectorActive) {
             handleSelectionChange(event, raycaster, mouse);
+            if(isMobile()) {
+                startX = event.touches[0].clientX;
+                isSwiping = true;
+            }
+        }
+    }
+
+    handleSwipe = function(event) {
+        if (selectorActive) {
+            if (isSwiping) {
+                const moveX = event.touches[0].clientX - startX;
+                if (moveX < -50) {
+                    switchToAdjacentTarget(-1);
+                    isSwiping = false;
+                } else if (moveX > 50) {
+                    switchToAdjacentTarget(1);
+                    isSwiping = false;
+                }
+            }
+        }
+    }
+
+    handleTouchEnd = function() {
+        if (selectorActive) {
+            isSwiping = false;
         }
     }
 
@@ -848,6 +890,8 @@ function targetSelector(targetType) {
 
     window.addEventListener('click', handleClick);
     window.addEventListener('touchstart', handleClick);
+    window.addEventListener('touchmove', handleSwipe);
+    window.addEventListener('touchend', handleTouchEnd);
     window.addEventListener('keydown', handleKeyDown);
 
     // Set initial selection based on target type
@@ -1238,7 +1282,9 @@ function hyperSkill2(attacker) {
 function hyperSkill3() {
     stopTargetSelector();
     toggleButtons(false);
-    animateCameraMove(new THREE.Vector3(0, 1, -2), new THREE.Vector3(0, 1, 0), 100, 2.5);
+    camera.position.set(2, 1, -1);
+    camera.lookAt(1.5, 1, 0);
+    animateCameraMove(new THREE.Vector3(-2, 1, -2), new THREE.Vector3(-1, 1, 0), 100, 2.5);
 
     setTimeout(() => {
         allPlayers.forEach(player => {
@@ -1252,6 +1298,8 @@ function hyperSkill3() {
         ultraBuff.applyEffect();
         updateStatusPanel();
         setTimeout(() => {
+            camera.position.set(0, 3, 5);
+            camera.lookAt(0, 2, 0);
             animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
             setTimeout(() => {
                 toggleButtons(true);
@@ -1322,6 +1370,7 @@ document.getElementById('attackButton').addEventListener('click', function onCli
         attackMethod = 1;
         document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
         document.getElementById('skillButton').style.backgroundColor = '';
+        document.getElementById('hyperSkillButton').style.backgroundColor = '';
         targetSelector('enemy');
     }
 });
@@ -1347,13 +1396,13 @@ document.getElementById('skillButton').addEventListener('click', function onClic
     } else {
         switch (activePlayer.id) {
             case 1:
-                showMessage("Skill 1: deal damage and debuff the enemy!");
+                showMessage("Skill 1: deal damage and debuff the enemy!", 2000);
                 break;
             case 2:
-                showMessage("Skill 2: deal great damage to the enemy!");
+                showMessage("Skill 2: deal great damage to the enemy!", 2000);
                 break;
             case 3:
-                showMessage("Skill 3: heal target and act immediately!");
+                showMessage("Skill 3: heal target and act immediately!", 2000);
                 break;
         }
 
@@ -1361,23 +1410,44 @@ document.getElementById('skillButton').addEventListener('click', function onClic
         attackMethod = 2;
         document.getElementById('attackButton').style.backgroundColor = '';
         document.getElementById('skillButton').style.backgroundColor = 'rgb(255,234,0)';
+        document.getElementById('hyperSkillButton').style.backgroundColor = '';
         targetSelector(skillTarget);
     }
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
-    switch (activePlayer.id) {
-        case 1:
-            showMessage("Hyper Skill 1: deal damage and speed down all enemies!");
-            hyperSkill1(activePlayer);
-            break;
-        case 2:
-            showMessage("Hyper Skill 2: shoot 3 ammos to target enemies!");
-            hyperSkill2(activePlayer);
-            break;
-        case 3:
-            showMessage("Hyper Skill 3: speed up all players and buff their attack!");
-            hyperSkill3();
-            break;
+    if (attackMethod === 3){
+        document.getElementById('skillButton').style.backgroundColor = '';
+        toggleButtons(false);
+        stopTargetSelector();
+
+        switch (activePlayer.id) {
+            case 1:
+                hyperSkill1(activePlayer);
+                break;
+            case 2:
+                hyperSkill2(activePlayer);
+                break;
+            case 3:
+                hyperSkill3();
+                break;
+        }
+    } else {
+        attackMethod = 3;
+        stopTargetSelector();
+        switch (activePlayer.id) {
+            case 1:
+                showMessage("Hyper Skill 1: deal damage and speed down all enemies!", 2000);
+                break;
+            case 2:
+                showMessage("Hyper Skill 2: shoot 3 ammos to target enemies!", 2000);
+                break;
+            case 3:
+                showMessage("Hyper Skill 3: speed up all players and buff their attack!", 2000);
+                break;
+        }
+        document.getElementById('attackButton').style.backgroundColor = '';
+        document.getElementById('skillButton').style.backgroundColor = '';
+        document.getElementById('hyperSkillButton').style.backgroundColor = 'rgb(255,234,0)';
     }
 });
 
@@ -1393,11 +1463,150 @@ document.getElementById('musicButton').addEventListener('click', function onClic
 });
 
 document.getElementById('TestButton').addEventListener('click', function onClick() {
-    hyperSkill3();
+    showTutorial();
 });
 
+// Tutorial
+const tutorialCanvas = document.getElementById("tutorial-canvas");
+const tutorialContainer = document.getElementById("tutorial-container");
+const prevBtn = document.getElementById("prev-btn");
+const nextBtn = document.getElementById("next-btn");
+const closeBtn = document.getElementById("close-btn");
+
+const tutorialText = document.getElementById("tutorial-text");
+const tutorialImage = document.getElementById("tutorial-image");
+const dotIndicator = document.getElementById("dot-indicator");
+
+let currentPage = 0;
+const totalPages = 4; // Adjust this based on the number of tutorial steps
+
+// Tutorial Data (You can add more steps as needed)
+const tutorialData = [
+    {
+        image: "data/tutorial/combat/actseq.png",
+        text: "The action sequence is shown on the left. The player with the lowest action value will act first.\n" +
+            "The action value depends on the speed of the player. The higher the speed, the faster the player will act.\n" +
+            "Each round has action value of 100. When it is used up, the next round will start.\n"
+    },
+    {
+        image: "data/tutorial/combat/player.png",
+        text: "The players and enemies stand in two rows. The players are on the left, and the enemies are on the right.\n" +
+            "When it's the player's turn, you can select an enemy to attack. When it's the enemy's turn, they will attack a random player.\n" +
+            "You can select a target by clicking on them or using the arrow keys / swipe gestures.\n"
+    },
+    {
+        image: "data/tutorial/combat/actions.png",
+        text: "When it's your turn, you can choose to attack or use a skill. Each player has a unique skill with unique effects.\n" +
+            "You can check out the skills by clicking on the corresponding buttons.\n" +
+            "You can also use hyper skills, which are powerful abilities that can turn the tide of battle.\n" +
+            "Try to defeat all the enemies before they defeat you!"
+    },
+    {
+        image: "data/tutorial/combat/status.png",
+        text: "Remember to keep an eye on your player's status. If their HP drops to 0, they will be defeated.\n" +
+            "Also, it's a good idea to watch out for the speed of you and your enemies. Speed can make a big difference in battle!"
+    }
+];
+
+// Function to update the tutorial display
+function updateTutorial() {
+    // fade-in and fade-out animation
+    const tutorialContent = document.querySelector('.tutorial-content');
+    tutorialContent.style.opacity = 0;
+    // Update dot indicator
+    const dots = dotIndicator.getElementsByClassName("dot");
+    for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.remove("active");
+    }
+    dots[currentPage].classList.add("active");
+
+    setTimeout(() =>{
+        const { image, text } = tutorialData[currentPage];
+        tutorialImage.src = image;
+        tutorialText.textContent = text;
+        tutorialText.innerHTML = tutorialText.innerHTML.replace(/\n/g, '<br>');
+        tutorialContent.style.opacity = 1;
+    }, 200);
+}
+
+// Close button functionality
+closeBtn.addEventListener("click", () => {
+    tutorialCanvas.style.display = "none"; // Hide the tutorial
+});
+
+tutorialContainer.addEventListener('mousedown', (e) => {
+    startX = e.clientX;
+    isSwiping = true;
+});
+
+// Navigation buttons functionality
+prevBtn.addEventListener("click", () => {
+    if (currentPage > 0) {
+        currentPage--;
+        updateTutorial();
+    }
+});
+
+nextBtn.addEventListener("click", () => {
+    if (currentPage < totalPages - 1) {
+        currentPage++;
+        updateTutorial();
+    }
+});
+
+tutorialContainer.addEventListener('mousemove', (e) => {
+    if (isSwiping) {
+        const moveX = e.clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('mouseup', () => {
+    isSwiping = false;
+});
+
+tutorialContainer.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+});
+
+tutorialContainer.addEventListener('touchmove', (e) => {
+    if (isSwiping) {
+        const moveX = e.touches[0].clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('touchend', () => {
+    isSwiping = false;
+});
+
+// Initial tutorial setup
+function showTutorial() {
+    tutorialCanvas.style.display = "flex"; // Show the tutorial
+    updateTutorial();
+}
+
 let isMobile = () => {
-    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/));
     if (isMobile === true) {
         return isMobile;
     } else {

@@ -155,7 +155,7 @@ function resolveGameData() {
         };
         showMessage("Welcome to level " + gameData.level + "!");
         // 1: battle 2: cube game
-        gameMode = Math.floor(Math.random() * 2) + 1;
+        gameMode = Math.floor(Math.random() * 3) + 1;
         gameData.gameMode = gameMode;
         localStorage.setItem('gameData', JSON.stringify(gameData));
     } else {
@@ -164,6 +164,8 @@ function resolveGameData() {
                 window.location.href = 'combat.html';
             } else if (gameData.gameMode === 2) {
                 window.location.href = 'cube.html';
+            } else if (gameData.gameMode === 3){
+                window.location.href = 'clock.html';
             } else {
                 showMessage("Invalid game mode!", 2);
             }
@@ -179,7 +181,7 @@ function resolveGameData() {
             }, 1000);
         }
         if (!gameData.gameMode) {
-            gameMode = Math.floor(Math.random() * 2) + 1;
+            gameMode = Math.floor(Math.random() * 3) + 1;
             gameData.gameMode = gameMode;
             localStorage.setItem('gameData', JSON.stringify(gameData));
         }
@@ -366,6 +368,12 @@ function placeLayout() {
         } else if (gameMode === 2) {
             console.log("Game mode: cube game");
             // create a block object for building
+            const geometry = new THREE.BoxGeometry(2, 2, 2);
+            const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
+            building = new THREE.Mesh(geometry, material);
+        } else if (gameMode === 3) {
+            console.log("Game mode: clock game");
+            // create a clock object for building
             const geometry = new THREE.BoxGeometry(2, 2, 2);
             const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
             building = new THREE.Mesh(geometry, material);
@@ -813,6 +821,8 @@ function tryAttack() {
             showMessage('You are entering combat!');
         } else if (gameMode === 2) {
             showMessage('You are entering cube game!')
+        } else if (gameMode === 3) {
+            showMessage('You are entering clock game!')
         }
         const currentLevel = gameData.level || 1;
         const currentScore = gameData.score || 0;
@@ -842,6 +852,10 @@ function tryAttack() {
                 updateData.param = Math.floor(Math.random() * 5) + 1;
                 localStorage.setItem('gameData', JSON.stringify(updateData));
                 window.location.href = 'cube.html';
+            } else if (gameMode === 3) {
+                updateData.param = Math.floor(Math.random() * 5) + 1;
+                localStorage.setItem('gameData', JSON.stringify(updateData));
+                window.location.href = 'clock.html';
             }
         }, 1000);
     } else {
@@ -1102,31 +1116,9 @@ window.addEventListener('resize', function () {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
 });
-// document.addEventListener('click', () => {
-//     const element = document.documentElement;  // You can also target a specific element
-//
-//     // Check for standard fullscreen API first
-//     if (element.requestFullscreen) {
-//         element.requestFullscreen().catch((err) => {
-//             console.error("Fullscreen failed:", err);
-//         });
-//     }
-//     // Fallback for Safari (using the Webkit prefix)
-//     else if (element.webkitRequestFullscreen) {
-//         element.webkitRequestFullscreen().catch((err) => {
-//             console.error("Fullscreen failed:", err);
-//         });
-//     }
-//     // Fallback for other browsers
-//     else if (element.msRequestFullscreen) {
-//         element.msRequestFullscreen().catch((err) => {
-//             console.error("Fullscreen failed:", err);
-//         });
-//     }
-// });
 
 let isMobile = () => {
-    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/));
     if (isMobile === true) {
         return isMobile;
     } else {

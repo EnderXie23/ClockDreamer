@@ -594,7 +594,7 @@ function enterLight() {
         level: litLightNum,
         score: (gameData.score || 0) + 500,
         state: "world",
-        gameMode: litLightNum % 2 + 1,
+        gameMode: litLightNum % 3 + 1,
     }
     localStorage.setItem('gameData', JSON.stringify(updateData));
     console.log("Game data updated: ", updateData);
@@ -797,7 +797,7 @@ window.addEventListener('mouseup', () => {
 });
 
 let isMobile = () => {
-    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/) || navigator.userAgentData.mobile);
+    const isMobile = ('ontouchstart' in document.documentElement || navigator.userAgent.match(/Mobi/));
     if (isMobile === true) {
         return isMobile;
     } else {
