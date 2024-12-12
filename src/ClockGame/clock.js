@@ -38,6 +38,7 @@ let data = {
             shape: [{x: 0, y: 0, z: 0}, {x: 1, y: 0, z: 0}, {x: 2, y: 0, z: 0}, {x: 3, y: 0, z: 0}, {x: 4, y: 0, z: 0}, {x: 5, y: 0, z: 0}],
             position: [-1, 0, -1],
             state: 0,
+            axis: "y",
             clip: [1, 1],
             goalStates: [2, 1]
         }
@@ -46,6 +47,7 @@ let data = {
         position: [0, 0, -6],
         clip: [-4, 3],
         goalStates: [999, -0.7],
+        axis: "x",
         offset: 0.3,
     },
     lights: [
@@ -118,12 +120,14 @@ class Light {
             });
             this.lightBulb = new THREE.Mesh(sphereGeometry, basicMaterial);
             this.pointLight.add(this.lightBulb);
+            this.lightBulb.layers.set(NO_REF_LAYER);
         }
 
         // 设置光源位置
         this.pointLight.position.set(this.x, this.y, this.z);
         this.pointLight.castShadow = true;
         scene.add(this.pointLight);
+        this.pointLight.layers.set(NO_REF_LAYER);
     }
 
     // 定义光源的动画效果
@@ -147,6 +151,7 @@ class Model {
         this.animationStages = [];
         this.model.position.set(this.startX, this.startY, this.startZ);
         scene.add(this.model);
+        this.model.layers.set(NO_REF_LAYER);
     }
 }
 
@@ -227,7 +232,7 @@ function loadAllAssets() {
             console.log("Loaded models: ", loadedModels);
             resolveGameData();
 
-            const path = "data/clock/clock1.json";
+            const path = "data/clock/clock2.json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             Promise.all([...dataPromises])
@@ -317,8 +322,8 @@ function init(){
     camera.applyMatrix4(translationMatrix);
 
     // Create mirror
-    const mirrorWidth = 5;
-    const mirrorHeight = 8;
+    const mirrorWidth = data.mirror.size[0];
+    const mirrorHeight = data.mirror.size[1];
     let geometry = new THREE.PlaneGeometry(mirrorWidth, mirrorHeight);
     mirror = new Reflector(geometry, {
         clipBias: 0.003,
@@ -329,18 +334,21 @@ function init(){
     mirror.position.set(data.mirror.position[0], data.mirror.position[1], data.mirror.position[2]);
     mirror.goalStates = data.mirror.goalStates;
     mirror.offset = data.mirror.offset;
+    mirror.axis = data.mirror.axis;
+    mirror.clip = data.mirror.clip;
     mirror.material.transparent = true;
     mirror.material.opacity = 0.9;
+    if(mirror.axis === 'z'){
+        mirror.rotation.y = Math.PI / 2;
+    }
     scene.add(mirror);
 
     // Create blocks
-    const blockMaterialDrag = new THREE.MeshBasicMaterial({color: 0xFFB432});
-    const blockMaterialSpin = new THREE.MeshBasicMaterial({color: 0xFF6432});
-
     // Draggable block
     data.dragObj.forEach(obj => {
         const dragGroup = new THREE.Group();
         const dragObjGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const blockMaterialDrag = new THREE.MeshBasicMaterial({color: 0xFFB432});
         obj.shape.forEach(shape => {
             const block = new THREE.Mesh(dragObjGeometry, blockMaterialDrag);
             block.position.set(shape.x, shape.y, shape.z);
@@ -359,6 +367,7 @@ function init(){
     data.spinObj.forEach(obj => {
         const spinGroup = new THREE.Group();
         const spinObjGeometry = new THREE.BoxGeometry(1, 1, 1);
+        const blockMaterialSpin = new THREE.MeshBasicMaterial({color: 0xFF6432});
         obj.shape.forEach(shape => {
             const block = new THREE.Mesh(spinObjGeometry, blockMaterialSpin);
             block.position.set(shape.x, shape.y, shape.z);
@@ -366,11 +375,25 @@ function init(){
         });
         spinGroup.state = obj.state;
         spinGroup.clip = obj.clip;
+        spinGroup.axis = obj.axis;
         spinGroup.goalStates = obj.goalStates;
         spinGroup.position.set(obj.position[0], obj.position[1], obj.position[2]);
+        if(obj.axis === 'x') {
+            spinGroup.rotation.x += Math.PI / 2 * obj.state;
+        } else if(obj.axis === 'y') {
+            spinGroup.rotation.y += Math.PI / 2 * obj.state;
+        } else {
+            spinGroup.rotation.z += Math.PI / 2 * obj.state
+        }
+        if(obj.color){
+            spinGroup.children.forEach((block) => {
+                block.material.color.setHex(obj.color);
+            });
+        }
         scene.add(spinGroup);
         spinObj.push(spinGroup);
     });
+    console.log("spinObj:", spinObj);
 
     dragObj.forEach(obj => obj.layers.set(MAIN_LAYER));
     spinObj.forEach(obj => obj.layers.set(MAIN_LAYER));
@@ -434,7 +457,17 @@ function renderRotation(ind) {
     // rotate till target
     if (animationInProgress) {
         if (totalRotation < Math.abs(targetRotation)) {
-            spinObj[ind].rotation.y += rotationSpeed;
+            switch (spinObj[ind].axis) {
+                case 'x':
+                    spinObj[ind].rotation.x += rotationSpeed;
+                    break;
+                case 'y':
+                    spinObj[ind].rotation.y += rotationSpeed;
+                    break;
+                case 'z':
+                    spinObj[ind].rotation.z += rotationSpeed;
+                    break;
+            }
             totalRotation += Math.abs(rotationSpeed);
         } else {
             animationInProgress = false;
@@ -457,7 +490,7 @@ function createTrail() {
         );
         trailSegment.position.set(pos[0], pos[1], pos[2]);
         scene.add(trailSegment);
-        trailSegment.layers.set(NO_REF_LAYER);
+        trailSegment.layers.set(MAIN_LAYER);
     });
 
     const destinationMaterial = new THREE.MeshBasicMaterial({color: 0xFFD700});
@@ -489,13 +522,19 @@ function handleGoals() {
     });
 
     spinObj.forEach((obj) => {
-        if(obj.state !== obj.goalStates[goalInd]) {
+        if((obj.state % 4) !== obj.goalStates[goalInd] && obj.goalStates[goalInd] !== 999) {
             flag = false;
         }
     });
 
-    if (mirror.position.x !== mirror.goalStates[goalInd] && mirror.goalStates[goalInd] !== 999) {
-        flag = false;
+    if(mirror.axis === 'z'){
+        if (mirror.position.z !== mirror.goalStates[goalInd] && mirror.goalStates[goalInd] !== 999) {
+            flag = false;
+        }
+    } else {
+        if (mirror.position.x !== mirror.goalStates[goalInd] && mirror.goalStates[goalInd] !== 999) {
+            flag = false;
+        }
     }
 
     if(flag === true && !animationInProgress) {
@@ -544,7 +583,7 @@ function onMouseDown(event) {
         else
             selectedObject = intersects[0].object;
 
-        if (dragObj.includes(selectedObject)) {
+        if (dragObj.includes(selectedObject) || selectedObject === mirror) {
             // Start dragging the selected object
             dragging = true;
             raycaster.setFromCamera(mouse, camera);
@@ -557,12 +596,6 @@ function onMouseDown(event) {
                 originalPos = selectedObject.position.x;
             }
             raycaster.ray.intersectPlane(Plane, originalIntersection);
-        } else if (selectedObject === mirror) {
-            dragging = true;
-            raycaster.setFromCamera(mouse, camera);
-            const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-            raycaster.ray.intersectPlane(XPlane, originalIntersection);
-            originalPos = mirror.position.x;
         } else if (spinObj.includes(selectedObject)) {
             // Check if the red block can rotate
             let rotLim = rotationDirection === 1 ? selectedObject.state <= selectedObject.clip[0]
@@ -596,8 +629,8 @@ function onMouseMove(event) {
     raycaster.setFromCamera(mouse, camera);
     let intersectionPoint;
 
-    if (dragObj.includes(selectedObject)) {
-        // Create a plane for dragging along the Z-axis
+    if (dragObj.includes(selectedObject) || selectedObject === mirror) {
+        // Create a plane for dragging along the axis
         let Plane = new THREE.Plane();
         if (selectedObject.axis === 'z')
             Plane = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);
@@ -615,17 +648,6 @@ function onMouseMove(event) {
             delta = intersectionPoint.x - originalIntersection.x;
             selectedObject.position.x = Math.max(Math.min(originalPos + delta, selectedObject.clip[1]), selectedObject.clip[0]);
         }
-    } else if (selectedObject === mirror) {
-        // Create a plane for dragging along the X-axis
-        const XPlane = new THREE.Plane(new THREE.Vector3(0, 0, 1), 0);
-
-        // Use rayCaster to find intersection point on the plane
-        intersectionPoint = new THREE.Vector3();
-        raycaster.ray.intersectPlane(XPlane, intersectionPoint);
-        const deltaX = intersectionPoint.x - originalIntersection.x;
-
-        // Move the mirror along the X-axis
-        mirror.position.x = Math.max(Math.min(originalPos + deltaX, data.mirror.clip[1]), data.mirror.clip[0]);
     }
 }
 
@@ -633,17 +655,14 @@ function onMouseMove(event) {
 function onMouseUp() {
     dragging = false;
 
-    if (dragObj.includes(selectedObject)) {
+    if (dragObj.includes(selectedObject) || selectedObject === mirror) {
         // Snap the yellow block to the nearest grid position
         if(selectedObject.axis === 'z')
             selectedObject.position.z = Math.round(selectedObject.position.z) + selectedObject.offset;
         else if(selectedObject.axis === 'x')
             selectedObject.position.x = Math.round(selectedObject.position.x) + selectedObject.offset;
-    } else if (selectedObject === mirror) {
-        // Snap the mirror to the nearest grid position
-        mirror.position.x = Math.round(mirror.position.x) + mirror.offset;
     }
-    console.log("mirror position:", mirror.position.x);
+    console.log("mirror position:", mirror.axis === 'z' ? mirror.position.z : mirror.position.x);
     dragObj.forEach(obj => {
         if (obj.axis === 'z')
             console.log("Drag obj position:", obj.position.z);
