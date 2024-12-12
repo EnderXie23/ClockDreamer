@@ -1,0 +1,70 @@
+{
+  "trail": [
+    [-1, 0, 3], [-1, 0, 2], [-1, 0, 1], [-1, 0, 0],
+    [-7, 0, 3],
+    [2, 0, -11], [1, 0, -11], [0, 0, -11], [-1, 0, -11]
+  ],
+  "destinations": [[-1, 0.7, 3], [2, 0.7, -11]],
+  "dragObj": [
+    {
+      "shape": [{"x": 0, "y": 0, "z": 0}, {"x": 0, "y": 0, "z": 1}, {"x": 0, "y": 0, "z": 2}, {"x": 0, "y": 0, "z": 3}],
+      "position": [-7, 0, -3],
+      "axis": "z",
+      "clip": [-6, -1],
+      "goalPositions": [-1, 999],
+      "offset": 0
+    }
+  ],
+  "spinObj": [
+    {
+      "shape": [{"x": 0, "y": 0, "z": 0}, {"x": 1, "y": 0, "z": 0}, {"x": 2, "y": 0, "z": 0}, {"x": 3, "y": 0, "z": 0},
+        {"x": 4, "y": 0, "z": 0}, {"x": 5, "y": 0, "z": 0}],
+      "position": [-1, 0, -1],
+      "state": 0,
+      "axis": "y",
+      "clip": [1, 1],
+      "goalStates": [2, 1]
+    }
+  ],
+  "mirror": {
+    "size": [5, 8],
+    "position": [0, 0, -6],
+    "clip": [-4, 3],
+    "axis": "x",
+    "goalStates": [999, -0.7],
+    "offset": 0.3
+  },
+  "lights": [
+    {
+      "position": [-1, 1.5, 3],
+      "color": "rgb(255, 246, 178)",
+      "show": 1,
+      "size": 0.1,
+      "amplitude": 0.1,
+      "frequency": 10
+    },
+    {
+      "position": [2, 1.5, -11],
+      "color": "rgb(255, 246, 178)",
+      "show": 1,
+      "size": 0.1,
+      "amplitude": 0.1,
+      "frequency": 10
+    }
+  ],
+  "model": {
+    "position": [-7, 0.6, 3],
+    "loadPath": "data/objects/character/plant1.glb",
+    "animationStages": [
+      [
+        {"target": {"x": -7, "y": 0.6, "z": -1}, "duration": 0.5},
+        {"target": {"x": -1, "y": 0.6, "z": -1}, "duration": 0.5},
+        {"target": {"x": -1, "y": 0.6, "z": 3}, "duration": 0.5}
+      ],
+      [
+        {"target": {"x": -1, "y": 0.6, "z": -11}, "duration": 0.5},
+        {"target": {"x": 2, "y": 0.6, "z": -11}, "duration": 0.5}
+      ]
+    ]
+  }
+}
