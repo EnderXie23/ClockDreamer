@@ -74,6 +74,18 @@ const initGame = async () => {
 
     document.body.appendChild(renderer.domElement);
 
+
+    const gameData = loadGameData();
+
+    // 根据游戏数据点亮灯光
+    if (gameData.state === "path") {
+        pointLights.forEach((light, index) => {
+            if (index < gameData.level) {
+                scene.add(light); // 将灯光添加到场景中
+                console.log(`Light ${index + 1} is lit.`);
+            }
+        });
+    }
     floorplanRenderer();
     resizeListener();
     mouseListener();
@@ -319,6 +331,18 @@ class Light {
         } else {
             progress.push(pointLight);
         }
+    }
+}
+
+// 获取游戏数据
+function loadGameData() {
+    const gameData = JSON.parse(localStorage.getItem('gameData'));
+    if (gameData) {
+        console.log("Loaded game data: ", gameData);
+        return gameData;
+    } else {
+        console.warn("No game data found.");
+        return { level: 1, score: 0, state: "path" }; // 默认数据
     }
 }
 

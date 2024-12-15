@@ -252,22 +252,26 @@ function loadAllAssets() {
         });
 }
 
-function handleWin(){
+function handleWin() {
     showMessage("Congratulations! You have completed the game!", 3000, 1);
     animationInProgress = true;
 
     let updateGameData = {
         level: gameData.level,
         score: gameData.score + 500,
-        state: "win",
-    }
-    localStorage.setItem('gameData', JSON.stringify(updateGameData));
-    console.log("Game data update:" + JSON.stringify(updateGameData));
+        state: "path", // 标记下一个状态
+    };
 
+    // 存储游戏数据
+    localStorage.setItem('gameData', JSON.stringify(updateGameData));
+    console.log("Game data updated: " + JSON.stringify(updateGameData));
+
+    // 延迟跳转到 Path 场景
     setTimeout(() => {
-        window.location.href = "bigworld.html";
+        window.location.href = "path.html"; // 跳转到 Path 场景
     }, 1000);
 }
+
 
 function moveToGoal(){
     gsap.to(model.model.position, {
