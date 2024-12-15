@@ -24,6 +24,7 @@ class PlayerInfo {
         this.charType = charType;
         this.actionVal = actionVal;
         this.dist = dist;
+        this.energy = 50;
     }
 }
 
@@ -67,7 +68,7 @@ let initPlayers = [
     new Player(2, "Player 2", 90, 10000, 10000, 100, 100, 0.6, 2, 190, skillSet),
     new Player(3, "Player 3", 90, 10000, 10000, 100, 100, 0.6, 2, 215, skillSet)
 ];
-let allPlayers;
+let allPlayers, energy;
 let initEnemies = [
     new Enemy(1, "Enemy 1", 90, 10000, 10000, 100, 100, 0.6, 2, 200, skillSet),
     new Enemy(2, "Enemy 2", 90, 10000, 10000, 150, 70, 0.7, 2, 170, skillSet),
@@ -76,14 +77,13 @@ let allEnemies;
 
 // For action controls
 let activePlayer;
-let currentVal = 0;
-let round = 0;
+let currentVal = 0, round = 0;
+let skillDots = 5;
 
 // For target selection
 let handleClick, handleKeyDown, handleSwipe, handleTouchEnd;
 let attackMethod = 1; // 1: atk 2: skill 3: hyperSkill
-let currentTarget, currentTargetCube;
-let selectionIndicator;
+let currentTarget, currentTargetCube, selectionIndicator;
 let selectorActive = false;
 
 // Player and enemy cubes
@@ -304,9 +304,11 @@ function initGame() {
 
     // Clone the initial players and enemies
     allPlayers = [];
+    energy = [50];
     initPlayers.forEach(player => {
         if (player.hp <= 0) return;
         allPlayers.push(new Player(player.id, player.name, player.lv, player.maxHp, player.hp, player.atk, player.def, player.crit_rate, player.crit_dmg, player.speed, player.skills));
+        energy.push(50);
     });
     allEnemies = [];
     initEnemies.forEach(enemy => {
@@ -612,11 +614,10 @@ function animateAttack(attacker, target) {
 
 // Disable / enable buttons
 function toggleButtons(enabled = true) {
-    let buttons = [];
-    buttons.push(document.getElementById('attackButton'));
-    buttons.push(document.getElementById('skillButton'));
-    buttons.push(document.getElementById('hyperSkillButton'));
-    buttons.forEach(button => button.disabled = !enabled);
+    document.getElementById('attackButton').disabled = !enabled;
+    document.getElementById('skillButton').disabled = !(enabled && skillDots >= 1);
+    document.getElementById('hyperSkillButton').disabled = !(enabled && energy[activePlayer.id] === 100);
+
 }
 
 // Animate a boost
@@ -803,6 +804,19 @@ function startRound() {
 
 // Update the hp bars and status panel
 function updateStatusPanel() {
+    skillDots = Math.min(skillDots, 5);
+    energy = energy.map(e => Math.min(e, 100));
+
+    for (let i = 1; i <= 5; i++) {
+        const dot = document.getElementById('skill-dot-' + i);
+        if(skillDots >= i)
+            dot.className = 'skill-dot active';
+        else
+            dot.className = 'skill-dot';
+    }
+    if(activePlayer)
+        document.getElementById('energy-fill').style.width = energy[activePlayer.id] + '%';
+
     document.getElementById('status-panel').innerHTML = "";
     allPlayers.forEach(player => {
         const playerStatus = document.createElement('p');
@@ -1078,9 +1092,11 @@ function nextAction() {
         activePlayer = allPlayers.find(player => player.id === info.playerId);
 
         // Auto select the target assuming an attack
+        updateStatusPanel();
         attackMethod = 1;
         document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
         stopTargetSelector();
+        toggleButtons(true);
         targetSelector('enemy');
     } else {
         toggleButtons(false);
@@ -1127,7 +1143,7 @@ function skill3(attacker) {
     if(currentTarget.id !== attacker.id) {
         let flag = false;
         actionQ.elements.forEach(action => {
-            flag |= action.PlayerInfo.playerId === currentTarget.id;
+            flag |= (action.PlayerInfo.playerId === currentTarget.id) && (action.PlayerInfo.charType === "player");
         });
         if(flag)
             actionForward(currentTarget, 1);
@@ -1356,6 +1372,8 @@ window.addEventListener('resize', function () {
 // Button logic
 document.getElementById('attackButton').addEventListener('click', function onClick() {
     if (attackMethod === 1) {
+        skillDots++;
+        energy[activePlayer.id] += 10;
         document.getElementById('attackButton').style.backgroundColor = '';
         toggleButtons(false);
         stopTargetSelector();
@@ -1378,6 +1396,8 @@ document.getElementById('skillButton').addEventListener('click', function onClic
     const skillTarget = (activePlayer.id === 3) ? 'player' : 'enemy';
 
     if (attackMethod === 2) {
+        skillDots--;
+        energy[activePlayer.id] += 20;
         document.getElementById('skillButton').style.backgroundColor = '';
         toggleButtons(false);
         stopTargetSelector();
@@ -1419,6 +1439,7 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
         document.getElementById('skillButton').style.backgroundColor = '';
         toggleButtons(false);
         stopTargetSelector();
+        energy[activePlayer.id] = 0;
 
         switch (activePlayer.id) {
             case 1:

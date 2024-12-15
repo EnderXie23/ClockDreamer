@@ -144,6 +144,47 @@ button {
     transform: translateX(-50%);
 }
 
+.skill-dot-indicator {
+    display: flex;
+    gap: 5px;
+    justify-content: center;
+}
+
+.skill-dot {
+    width: 10px;
+    height: 10px;
+    background-color: rgba(255, 255, 255, 0.2);
+    border-radius: 50%;
+    transition: background-color 0.3s ease;
+}
+
+.skill-dot.active {
+    background-color: white;
+}
+
+#energy-container {
+    width: 100%;
+    max-width: 100px;  /* Adjust to the desired width */
+    text-align: center;
+}
+
+#energy-bar {
+    width: 100%;
+    height: 5px;
+    background-color: #ccc;  /* Light gray background */
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+#energy-fill {
+    height: 100%;
+    width: 50%;  /* Default to full charge */
+    background-color: #f6ff2a;  /* Yellowish color */
+    transition: width 0.3s ease;  /* Smooth transition for width change */
+}
+
+/* Tutorial */
+
 .tutorial-canvas {
     position: fixed;
     width: 100%;
@@ -220,6 +261,8 @@ button {
 .dot.active {
     background-color: #ff0000;
 }
+
+/* Navigation Buttons */
 
 .nav-btn {
     background-color: rgba(0, 0, 0, 0.5);
