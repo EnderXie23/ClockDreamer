@@ -24,7 +24,6 @@ class PlayerInfo {
         this.charType = charType;
         this.actionVal = actionVal;
         this.dist = dist;
-        this.energy = 50;
     }
 }
 
@@ -70,8 +69,9 @@ let initPlayers = [
 ];
 let allPlayers, energy;
 let initEnemies = [
-    new Enemy(1, "Enemy 1", 90, 10000, 10000, 100, 100, 0.6, 2, 200, skillSet),
-    new Enemy(2, "Enemy 2", 90, 10000, 10000, 150, 70, 0.7, 2, 170, skillSet),
+    new Enemy(1, "Enemy 1", 90, 10000, 10000, 100, 80, 0.6, 2, 200, skillSet),
+    new Enemy(2, "Enemy 2", 90, 7000, 7000, 150, 70, 0.7, 2, 190, skillSet),
+    new Enemy(3, "Enemy 3", 90, 15000, 15000, 100, 100, 0.6, 1.5, 170, skillSet),
 ];
 let allEnemies;
 
@@ -814,13 +814,16 @@ function updateStatusPanel() {
         else
             dot.className = 'skill-dot';
     }
-    if(activePlayer)
+    if(activePlayer && allPlayers.includes(activePlayer))
         document.getElementById('energy-fill').style.width = energy[activePlayer.id] + '%';
+    else
+        document.getElementById('energy-fill').style.width = '0%';
 
     document.getElementById('status-panel').innerHTML = "";
     allPlayers.forEach(player => {
         const playerStatus = document.createElement('p');
-        playerStatus.innerHTML = player.name + ': ' + player.hp + ' HP<br>' + 'Atk: ' + player.atk + '    Def: ' + player.def + '<br>Speed: ' + player.speed;
+        playerStatus.innerHTML = player.name + ': ' + player.hp + ' HP<br>' + 'Atk: ' + player.atk + '    Def: ' + player.def
+            + '<br>Speed: ' + player.speed + ' Energy: ' + energy[player.id];
         document.getElementById('status-panel').appendChild(playerStatus);
 
         const hpPercentage = player.hp / player.maxHp;
@@ -1105,6 +1108,7 @@ function nextAction() {
 
         // Randomly select a player to attack
         const randomIndex = Math.floor(Math.random() * allPlayers.length);
+        energy[randomIndex] += 10;
         activePlayer.useSkill(0, allPlayers[randomIndex]);
         animateAttack(activePlayer, allPlayers[randomIndex]);
         setTimeout(afterAction, 1100);
@@ -1148,7 +1152,7 @@ function skill3(attacker) {
         if(flag)
             actionForward(currentTarget, 1);
         else {
-            const info = new PlayerInfo(currentTarget.id, currentTarget.speed, "player", currentVal, 0);
+            const info = new PlayerInfo(currentTarget.id, currentTarget.speed, "player", 100 - currentVal, 10000);
             actionQ.elements.push({index: 0, PlayerInfo: info});
         }
     }
@@ -1245,6 +1249,7 @@ function hyperSkill2(attacker) {
         showMessage("You have " + ammo + " ammos left!", 1000);
 
         document.getElementById('ActButton').style.display = 'block';
+        document.getElementById('ActButton').style.backgroundColor = 'rgb(255,234,0)';
         document.getElementById('ActButton').addEventListener('click', onClick);
     }, 1500);
 
@@ -1373,7 +1378,7 @@ window.addEventListener('resize', function () {
 document.getElementById('attackButton').addEventListener('click', function onClick() {
     if (attackMethod === 1) {
         skillDots++;
-        energy[activePlayer.id] += 10;
+        energy[activePlayer.id] += 20;
         document.getElementById('attackButton').style.backgroundColor = '';
         toggleButtons(false);
         stopTargetSelector();
@@ -1397,7 +1402,7 @@ document.getElementById('skillButton').addEventListener('click', function onClic
 
     if (attackMethod === 2) {
         skillDots--;
-        energy[activePlayer.id] += 20;
+        energy[activePlayer.id] += 30;
         document.getElementById('skillButton').style.backgroundColor = '';
         toggleButtons(false);
         stopTargetSelector();

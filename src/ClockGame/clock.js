@@ -257,21 +257,18 @@ function handleWin() {
     animationInProgress = true;
 
     let updateGameData = {
-        level: gameData.level,
+        level: gameData.level + 1,
         score: gameData.score + 500,
-        state: "path", // 标记下一个状态
+        state: "path",
     };
 
-    // 存储游戏数据
     localStorage.setItem('gameData', JSON.stringify(updateGameData));
     console.log("Game data updated: " + JSON.stringify(updateGameData));
 
-    // 延迟跳转到 Path 场景
     setTimeout(() => {
         window.location.href = "path.html"; // 跳转到 Path 场景
     }, 1000);
 }
-
 
 function moveToGoal(){
     gsap.to(model.model.position, {

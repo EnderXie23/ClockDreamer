@@ -435,8 +435,16 @@ function animate() {
     if (cubesLeft === 0) {
         if (judge())
             handleWin();
-        else
+        else {
+            win = true;
             showMessage("You have placed all cubes, but the solution is incorrect.");
+            showMessage("The game will reset in 2 seconds.", 2000, 2);
+            setTimeout(() => {
+                initGame();
+                win = false;
+                animate();
+            }, 2000);
+        }
     }
 }
 

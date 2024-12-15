@@ -9,7 +9,8 @@ body, html {
 
 #left-sidebar {
     width: 20vw;
-    height: 80vh;
+    height: max-content;
+    max-height: 80vh;
     background-color: rgba(0, 0, 0, 0.7);
     color: white;
     padding: 10px;
@@ -25,8 +26,9 @@ body, html {
     display: flex;
 }
 
-#right-buttons {
+#right-panel {
     width: 20vw;
+    max-height: 100vh;
     background-color: rgba(0, 0, 0, 0.7);
     color: white;
     padding: 10px;
@@ -35,14 +37,30 @@ body, html {
     flex-direction: column;
     justify-content: center;
     align-items: center;
+    overflow-y: auto;
+}
+
+#right-buttons {
+    width: 20vw;
+    height: max-content;
+    max-height: 45vh;
+    font-family: Arial, sans-serif;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    overflow-y: auto;
 }
 
 #status-panel {
     width: 20vw;
+    height: max-content;
     background-color: rgba(0, 0, 0, 0.7);
     font-family: Arial, sans-serif;
     display: flex;
     flex-direction: column;
+    max-height: 57vh;
+    overflow-y: scroll;
 }
 
 button {
