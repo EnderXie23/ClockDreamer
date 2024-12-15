@@ -12,9 +12,54 @@
         canvas {
             display: block;
         }
+        #coordinates {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            color: white;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            font-family: Arial, sans-serif;
+            font-size: 14px;
+            border-radius: 5px;
+        }
+        #popup {
+            display: none; /* 默认隐藏弹窗 */
+            position: absolute;
+            bottom: 20px;
+            right: 50%;
+            transform: translateX(50%);
+            width: 300px;
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            text-align: center;
+            border: 1px solid #ccc;
+            border-radius: 10px;
+            z-index: 1000;
+        }
+        #popup button {
+            margin-top: 10px;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            background-color: #008cba;
+            color: white;
+            font-size: 16px;
+            cursor: pointer;
+        }
+        #popup button:hover {
+            background-color: #005f73;
+        }
     </style>
 </head>
 <body>
+<div id="coordinates">x: 0, y: 0, z: 0</div>
+<div id="popup">
+    <p>You are near the camera zone!</p>
+    <button id="redirectButton">Go to Clock</button>
+</div>
 <script type="module" src="src/World/bigworld.js"></script>
 </body>
 </html>
+

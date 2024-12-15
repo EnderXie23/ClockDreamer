@@ -265,7 +265,7 @@ function handleWin(){
     console.log("Game data update:" + JSON.stringify(updateGameData));
 
     setTimeout(() => {
-        window.location.href = "world.html";
+        window.location.href = "bigworld.html";
     }, 1000);
 }
 

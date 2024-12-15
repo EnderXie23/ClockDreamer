@@ -7,10 +7,13 @@ let keys = {}; // 用于存储键盘按键状态
 let velocity = new THREE.Vector3(); // 移动速度
 let canJump = false; // 是否可以跳跃
 let rotation = new THREE.Vector2(); // 鼠标控制角色旋转
+let popupVisible = false; // 弹窗是否已显示
 
-const GRAVITY = -5; // 重力加速度
-const MOVE_SPEED = 10; // 移动速度
-const JUMP_SPEED = 7; // 跳跃速度
+const GRAVITY = -0.5; // 重力加速度
+const MOVE_SPEED = 5; // 移动速度
+const JUMP_SPEED = 10; // 跳跃速度
+
+const targetPosition = new THREE.Vector2(-0.51, 20.05); // 目标点（XZ 平面）
 
 function init() {
     // 创建场景
@@ -32,12 +35,15 @@ function init() {
     document.body.appendChild(renderer.domElement);
 
     // 添加光照
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 3);
     scene.add(ambientLight);
 
     const directionalLight = new THREE.DirectionalLight(0xffffff, 1);
     directionalLight.position.set(5, 10, 7.5);
     scene.add(directionalLight);
+
+    const hemisphereLight = new THREE.HemisphereLight(0x87ceeb, 0x228b22, 0.8);
+    scene.add(hemisphereLight);
 
     // 加载主场景
     const loader = new GLTFLoader();
@@ -45,11 +51,15 @@ function init() {
         'data/models/the_room.glb', // 主场景模型路径
         (gltf) => {
             const mainScene = gltf.scene;
-            mainScene.scale.set(1, 1, 1);
+            mainScene.scale.set(0.1, 0.1, 0.1);
             scene.add(mainScene);
 
             // 加载角色模型
             loadCharacter();
+
+            loadcamera();
+
+            loadphoto();
         },
         undefined,
         (error) => {
@@ -79,14 +89,50 @@ function init() {
     animate();
 }
 
+function loadcamera() {
+    const loader = new GLTFLoader();
+    loader.load(
+        'data/models/sancamera.glb', // 门模型路径
+        (gltf) => {
+            const gate = gltf.scene;
+            gate.scale.set(3, 3, 3); // 调整门的大小
+            gate.position.set(-0.51, 4.00, 20.05); // 设置门的位置
+            scene.add(gate);
+            console.log('Gate loaded and added to the scene');
+        },
+        undefined,
+        (error) => {
+            console.error('An error occurred while loading the gate:', error);
+        }
+    );
+}
+
+function loadphoto() {
+    const loader = new GLTFLoader();
+    loader.load(
+        'data/models/photo.glb', // 门模型路径
+        (gltf) => {
+            const gate = gltf.scene;
+            gate.scale.set(0.6, 0.6, 0.6); // 调整门的大小
+            gate.position.set(-0.5, 6.8, 1.88); // 设置门的位置
+            scene.add(gate);
+            console.log('Gate loaded and added to the scene');
+        },
+        undefined,
+        (error) => {
+            console.error('An error occurred while loading the gate:', error);
+        }
+    );
+}
+//x: -0.51, y: 5.00, z: 20.05
 function loadCharacter() {
     const loader = new GLTFLoader();
     loader.load(
         'data/models/cube_character.glb', // 角色模型路径
         (gltf) => {
             character = gltf.scene;
-            character.scale.set(2, 2, 2); // 缩放角色
-            character.position.set(0, 1, 0); // 初始位置
+            character.scale.set(0.5, 0.5, 0.5); // 缩放角色
+            character.position.set(20, 5, 20); // 初始位置
             scene.add(character);
 
             // 初始化角色碰撞盒
@@ -115,6 +161,8 @@ function animate() {
     if (character) {
         updateMovement();
         updateRotation();
+        updateCoordinates(); // 更新坐标显示
+        checkDistanceToTarget(); // 检查是否接近目标点
     }
 
     renderer.render(scene, camera);
@@ -137,20 +185,20 @@ function updateMovement() {
     // 更新角色位置
     character.position.add(direction);
 
-    // 跳跃与重力
-    if (keys['Space'] && canJump) {
-        velocity.y = JUMP_SPEED;
-        canJump = false; // 跳跃中不能再次跳跃
-    }
-    velocity.y += GRAVITY * delta; // 应用重力
-    character.position.y += velocity.y;
-
-    // 碰撞检测与地面处理
-    if (character.position.y <= 1) {
-        velocity.y = 0;
-        character.position.y = 1; // 保持在地面
-        canJump = true;
-    }
+    // // 跳跃与重力
+    // if (keys['Space'] && canJump) {
+    //     velocity.y = JUMP_SPEED;
+    //     canJump = false; // 跳跃中不能再次跳跃
+    // }
+    // velocity.y += GRAVITY * delta; // 应用重力
+    // character.position.y += velocity.y;
+    //
+    // // 碰撞检测与地面处理
+    // if (character.position.y <= 1) {
+    //     velocity.y = 0;
+    //     character.position.y = 1; // 保持在地面
+    //     canJump = true;
+    // }
 
     // 更新碰撞盒
     characterBox.setFromObject(character);
@@ -160,5 +208,50 @@ function updateMovement() {
 function updateRotation() {
     character.rotation.y = rotation.x; // 基于鼠标的水平旋转更新角色的朝向
 }
+
+// 更新页面上的坐标显示
+function updateCoordinates() {
+    const coordinatesDiv = document.getElementById('coordinates');
+    const { x, y, z } = character.position;
+    coordinatesDiv.textContent = `x: ${x.toFixed(2)}, y: ${y.toFixed(2)}, z: ${z.toFixed(2)}`;
+}
+// 检查角色是否接近目标点
+function checkDistanceToTarget() {
+    const characterXZ = new THREE.Vector2(character.position.x, character.position.z);
+    const distance = characterXZ.distanceTo(targetPosition);
+
+    const popup = document.getElementById('popup');
+
+    if (distance <= 4) {
+        if (!popupVisible) {
+            showPopup(); // 显示弹窗
+            popupVisible = true;
+        }
+    } else {
+        if (popupVisible) {
+            hidePopup(); // 隐藏弹窗
+            popupVisible = false;
+        }
+    }
+}
+
+function hidePopup() {
+    const popup = document.getElementById('popup');
+    popup.style.display = 'none';
+}
+
+
+
+function showPopup() {
+    const popup = document.getElementById('popup');
+    popup.style.display = 'block';
+
+    // 动态绑定跳转逻辑
+    const redirectButton = document.getElementById('redirectButton');
+    redirectButton.addEventListener('click', () => {
+        window.location.href = 'clock.html';
+    });
+}
+
 
 init();
