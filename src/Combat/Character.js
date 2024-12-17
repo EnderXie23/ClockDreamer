@@ -59,6 +59,16 @@ export class Skill {
     }
 }
 
+function worldToScreen(position) {
+    // Project 3D world position to normalized device coordinates (NDC)
+    let vector = position.clone().project(camera);
+
+    // Convert NDC to screen space coordinates
+    let x = (vector.x + 1) / 2 * window.innerWidth;  // x = 0 to window.innerWidth
+    let y = -(vector.y - 1) / 2 * window.innerHeight;  // y = 0 to window.innerHeight
+    return { x: x, y: y };
+}
+
 class Character {
     constructor(id, name, lv, maxHp, hp, atk, def, crit_rate, crit_dmg, speed) {
         this.id = id;
@@ -107,6 +117,16 @@ class Character {
         }
         this.hp -= amount;
         console.log(`Character ${this.id}: ${this.name} took ${amount} damage!`);
+
+        document.getElementById('hp-loss').innerHTML = `-${amount}`;
+        document.getElementById('hp-loss').style.color = 'red';
+        document.getElementById('hp-loss').style.opacity = 1;
+        document.getElementById('hp-loss').style.top = `${worldToScreen(this.cube.position).y}px`;
+        document.getElementById('hp-loss').style.left = `${worldToScreen(this.cube.position).x}px`;
+        setTimeout(() => {
+            document.getElementById('hp-loss').style.opacity = 0;
+        }, 500);
+
         if (this.hp <= 0) {
             this.hp = 0;
             this.isAlive = false;
@@ -121,6 +141,15 @@ class Character {
         }
         this.hp += amount;
         this.hp = Math.min(this.hp, this.maxHp);
+
+        document.getElementById('hp-loss').innerHTML = `+${amount}`;
+        document.getElementById('hp-loss').style.color = 'green';
+        document.getElementById('hp-loss').style.opacity = 1;
+        document.getElementById('hp-loss').style.top = `${worldToScreen(this.cube.position).y}px`;
+        document.getElementById('hp-loss').style.left = `${worldToScreen(this.cube.position).x}px`;
+        setTimeout(() => {
+            document.getElementById('hp-loss').style.opacity = 0;
+        }, 500);
         console.log(`Character ${this.id}: ${this.name} healed for ${amount}!`);
     }
 }

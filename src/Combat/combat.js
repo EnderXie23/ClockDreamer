@@ -2,12 +2,14 @@ import * as THREE from 'three';
 import {Skill, Player, Enemy, Buff} from './Character.js';
 import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
+import {Sky} from "three/addons/objects/Sky.js";
 
-let scene, camera, renderer;
+let scene, renderer, sun, sky;
 let loadedTextures = [], loadedSounds = [], loadedModels = [];
 let gameData, playerData, bgm;
 const audioLoader = new THREE.AudioLoader();
 const listener = new THREE.AudioListener();
+let automaticMusicTrigger = true;
 
 // Function to handle swipes (drag or touch)
 let startX = 0;
@@ -162,7 +164,7 @@ function loadAllAssets() {
         });
     });
     bgm = new THREE.Audio(listener);
-    audioLoader.load('data/sounds/Background.mp3', function (buffer) {
+    audioLoader.load('data/sounds/Combat_bgm.mp3', function (buffer) {
         bgm.setBuffer(buffer);
         bgm.setLoop(true);
         bgm.setVolume(0.3);
@@ -255,14 +257,27 @@ function init() {
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
 
+    // Add Sky
+    sun = new THREE.Vector3();
+    sky = new Sky();
+    sky.scale.setScalar(1000);
+    const skyUniforms = sky.material.uniforms;
+    skyUniforms['turbidity'].value = 10;
+    skyUniforms['rayleigh'].value = 1;
+    skyUniforms['mieCoefficient'].value = 0.08;
+    skyUniforms['mieDirectionalG'].value = 0.5;
+    sun.setFromSphericalCoords(1, Math.PI/2 - 0.1, -Math.PI / 3);
+    skyUniforms['sunPosition'].value.copy(sun);
+    scene.add(sky);
+
     // Load ground texture
     const groundTexture = loadedTextures[0];
     groundTexture.wrapS = THREE.RepeatWrapping;
     groundTexture.wrapT = THREE.RepeatWrapping;
-    groundTexture.repeat.set(2, 2);
+    groundTexture.repeat.set(10, 10);
 
     // Create ground plane
-    const groundGeometry = new THREE.PlaneGeometry(100, 100);
+    const groundGeometry = new THREE.PlaneGeometry(500, 500);
     const groundMaterial = new THREE.MeshStandardMaterial({
         map: groundTexture,
         flatShading: true
@@ -343,14 +358,10 @@ function initGame() {
 // Create cubes for players and enemies
 function createCubes() {
     allPlayers.forEach(player => {
-        // Create a cube for each player
-        // const geometry = new THREE.BoxGeometry(1, 1, 1);
-        // const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
-        // const cube = new THREE.Mesh(geometry, material);
         const cube = loadedModels[0].clone();
 
         // Add the cube to the scene
-        cube.position.set(player.id * 2 - 4, 0, 2);
+        cube.position.set(player.id * 2 - 4, 0, 3);
         cube.castShadow = true;
         cube.receiveShadow = true;
         scene.add(cube);
@@ -382,10 +393,6 @@ function createCubes() {
     });
 
     allEnemies.forEach(enemy => {
-        // Create a cube for each enemy
-        // const geometry = new THREE.BoxGeometry(1, 1, 1);
-        // const material = new THREE.MeshStandardMaterial({color: 0xff0000});
-        // const cube = new THREE.Mesh(geometry, material);
         const cube = loadedModels[1].clone();
         cube.scale.set(1.7, 1.7, 1.7);
 
@@ -1011,6 +1018,7 @@ function stopTargetSelector() {
 
 function handleWin() {
     stopTargetSelector();
+    pauseAudio();
     showMessage("Congratulations! You won!");
     if(camera.position.x !== 3 || camera.position.y !== 4 || camera.position.z !== 7) {
         animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.1);
@@ -1094,6 +1102,11 @@ function nextAction() {
         console.log("Player " + info.playerId + " is acting!");
         activePlayer = allPlayers.find(player => player.id === info.playerId);
 
+        // Adjust camera pos
+        const playerPos = activePlayer.cube.position.clone();
+        const cameraPos = playerPos.add(new THREE.Vector3((activePlayer.id - 2)*1.5, 1, 3));
+        animateCameraMove(cameraPos, new THREE.Vector3(0, 0, 0), 75, 1);
+
         // Auto select the target assuming an attack
         updateStatusPanel();
         attackMethod = 1;
@@ -1105,6 +1118,9 @@ function nextAction() {
         toggleButtons(false);
         console.log("Enemy " + info.playerId + " is acting!");
         activePlayer = allEnemies.find(enemy => enemy.id === info.playerId);
+
+        // Adjust camera pos
+        animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.3);
 
         // Randomly select a player to attack
         const randomIndex = Math.floor(Math.random() * allPlayers.length);
@@ -1191,7 +1207,7 @@ function hyperSkill1(attacker) {
         // Animation sequence: Jump up, grow, and smash into enemies
         gsap.timeline()
             .to(playerCube.position, {y: originalPosition.y + 3, duration: 0.5, ease: "power2.out"}) // Jump up
-            .to(playerCube.scale, {x: 5, y: 5, z: 5, duration: 0.3, ease: "power2.out"}) // Grow
+            .to(playerCube.scale, {x: 7, y: 7, z: 7, duration: 0.3, ease: "power2.out"}) // Grow
             .to(playerCube.position, {
                 x: enemyPosition.x,
                 y: enemyPosition.y + 6,
@@ -1365,6 +1381,38 @@ function actionForward(target, val) {
     filterActions();
 }
 
+function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
+    let currentGain = bgm.gain.gain.value;
+    let fadeOutStep = currentGain / fadeOutDuration / fadeOutSteps;
+    let stepCount = 0;
+
+    function fadeOutAudio() {
+        if (stepCount < fadeOutSteps) {
+            // Decrease the volume gently
+            bgm.gain.gain.value = currentGain - (fadeOutStep * stepCount);
+            stepCount++;
+            requestAnimationFrame(fadeOutAudio);
+        } else {
+            // Once the fade out is complete, you can stop the audio
+            bgm.pause();
+            bgm.gain.gain.value = currentGain;
+        }
+    }
+
+    // Trigger the fade-out effect when you want
+    fadeOutAudio();
+}
+
+function worldToScreen(position) {
+    // Project 3D world position to normalized device coordinates (NDC)
+    let vector = position.clone().project(camera);
+
+    // Convert NDC to screen space coordinates
+    let x = (vector.x + 1) / 2 * (0.6 * window.innerWidth);  // x = 0 to window.innerWidth
+    let y = -(vector.y - 1) / 2 * (0.6 * window.innerHeight);  // y = 0 to window.innerHeight
+    return { x: x, y: y };
+}
+
 loadAllAssets();
 
 // Handle window resizing
@@ -1372,6 +1420,17 @@ window.addEventListener('resize', function () {
     renderer.setSize(window.innerWidth * 0.6, window.innerHeight);
     camera.aspect = window.innerWidth * 0.6 / window.innerHeight;
     camera.updateProjectionMatrix();
+});
+
+// Automatic BGM play
+document.addEventListener('click', function () {
+    if (automaticMusicTrigger){
+        bgm.play();
+        document.getElementById('musicButton').innerHTML = "Pause Music";
+        document.removeEventListener('click', this);
+        automaticMusicTrigger = false;
+        showMessage("Music is playing! Click the pause music button to pause it.", 3000);
+    }
 });
 
 // Button logic
@@ -1395,6 +1454,11 @@ document.getElementById('attackButton').addEventListener('click', function onCli
         document.getElementById('skillButton').style.backgroundColor = '';
         document.getElementById('hyperSkillButton').style.backgroundColor = '';
         targetSelector('enemy');
+        if(activePlayer.id === 3){
+            const playerPos = activePlayer.cube.position.clone();
+            const cameraPos = playerPos.add(new THREE.Vector3((activePlayer.id - 2)*1.5, 1, 3));
+            animateCameraMove(cameraPos, new THREE.Vector3(0, 0, 0), 75, 1);
+        }
     }
 });
 document.getElementById('skillButton').addEventListener('click', function onClick() {
@@ -1425,9 +1489,11 @@ document.getElementById('skillButton').addEventListener('click', function onClic
                 break;
             case 2:
                 showMessage("Skill 2: deal great damage to the enemy!", 2000);
+
                 break;
             case 3:
                 showMessage("Skill 3: heal target and act immediately!", 2000);
+                animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.5);
                 break;
         }
 
@@ -1468,6 +1534,7 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
                 showMessage("Hyper Skill 2: shoot 3 ammos to target enemies!", 2000);
                 break;
             case 3:
+                animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.5);
                 showMessage("Hyper Skill 3: speed up all players and buff their attack!", 2000);
                 break;
         }
@@ -1483,7 +1550,8 @@ document.getElementById('musicButton').addEventListener('click', function onClic
         bgm.play();
         document.getElementById('musicButton').innerHTML = "Pause Music";
     } else {
-        bgm.pause();
+        // bgm.pause();
+        pauseAudio();
         document.getElementById('musicButton').innerHTML = "Play Music";
     }
 });

@@ -201,14 +201,25 @@ button {
     transition: width 0.3s ease;  /* Smooth transition for width change */
 }
 
+#hp-loss {
+    position:fixed;
+    display: flex;
+    opacity: 0;
+    transition: 0.5s ease-in-out;
+    font-family: 'Arial', sans-serif;
+    font-size: 1.5em;
+}
+
 /* Tutorial */
 
 .tutorial-canvas {
+    user-select: none;
+    -webkit-user-select: none; /* For Safari */
+    -webkit-touch-callout: none;
     position: fixed;
     width: 100%;
     height: 100vh;
     background: rgba(0, 0, 0, 0.4);
-    display: flex;
     flex-direction: column;
     justify-content: space-between;
     align-items: center;
