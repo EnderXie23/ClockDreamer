@@ -13,6 +13,9 @@ let pointLightsZ = [];
 let isBonus = false;
 let dragging = false;
 let selectedObject = null;
+let bgm, autoMusicTrigger = true;
+const audioLoader = new THREE.AudioLoader();
+const listener = new THREE.AudioListener();
 
 const width = window.innerWidth;
 const height = window.innerHeight;
@@ -402,6 +405,13 @@ async function loadGame() {
         floorplan = data.floorplan;
         await initGame()
             .then(() => {
+                bgm = new THREE.Audio(listener);
+                audioLoader.load('data/sounds/Path_bgm.m4a', function (buffer) {
+                    bgm.setBuffer(buffer);
+                    bgm.setLoop(true);
+                    bgm.setVolume(0.15);
+                });
+
                 const keys = ['gameData'];
                 const dataPromises = keys.map((key) => loadData(key));
 
@@ -539,6 +549,28 @@ async function loadCharacter(scene) {
     });
 }
 
+function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
+    let currentGain = bgm.gain.gain.value;
+    let fadeOutStep = currentGain / fadeOutDuration / fadeOutSteps;
+    let stepCount = 0;
+
+    function fadeOutAudio() {
+        if (stepCount < fadeOutSteps) {
+            // Decrease the volume gently
+            bgm.gain.gain.value = currentGain - (fadeOutStep * stepCount);
+            stepCount++;
+            requestAnimationFrame(fadeOutAudio);
+        } else {
+            // Once the fade out is complete, you can stop the audio
+            bgm.pause();
+            bgm.gain.gain.value = currentGain;
+        }
+    }
+
+    // Trigger the fade-out effect when you want
+    fadeOutAudio();
+}
+
 // ========== MOVEMNET + EVENT ==========
 let applyGravity = () => {
     if (!isMoving) {
@@ -614,6 +646,9 @@ let applyMovement = async () => {
 }
 
 function enterLight() {
+    pauseAudio();
+    document.removeEventListener('mousemove', onMouseMove);
+    document.removeEventListener('mousedown', onMouseDown);
     const updateData = {
         level: litLightNum,
         score: (gameData.score || 0) + 500,
@@ -624,7 +659,9 @@ function enterLight() {
     console.log("Game data updated: ", updateData);
     localStorage.removeItem('positionData');
 
-    window.location.href = "world.html";
+    setTimeout(() => {
+        window.location.href = "world.html";
+    }, 1000);
 }
 
 function showMessage(message, mode = 1) {
@@ -757,11 +794,17 @@ let getActualPosition = (mapVector) => {
 // ========== MOUSE ACTION ==========
 function mouseListener() {
     renderer.domElement.addEventListener('mousemove', onMouseMove, false);
-    renderer.domElement.addEventListener('click', onMouseDown, false);
+    renderer.domElement.addEventListener('mousedown', onMouseDown, false);
     renderer.domElement.addEventListener('touchstart', onMouseDown, false);
 }
 
 let onMouseDown = async (event) => {
+    if(autoMusicTrigger){
+        bgm.play();
+        autoMusicTrigger = false;
+        showMessage("Music is playing!");
+    }
+
     // controls.autoRotate = false;
     if (isMobile()) {
         mouse.x = (event.changedTouches[0].clientX / window.innerWidth) * 2 - 1;

@@ -3,10 +3,12 @@ import {Reflector} from "three/addons/objects/Reflector.js";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {MMDLoader} from "three/addons/loaders/MMDLoader";
 
-const loader = new GLTFLoader();
-
+// Basic three.js setup
 let renderer, scene, camera;
 let mirror, dragObj = [], spinObj = [];
+let bgm, autoMusicTrigger = true;
+const audioLoader = new THREE.AudioLoader();
+const listener = new THREE.AudioListener();
 
 // Layer configuration
 const MAIN_LAYER = 0;
@@ -217,12 +219,18 @@ function resolveGameData() {
 }
 
 function loadAllAssets() {
+    bgm = new THREE.Audio(listener);
+    audioLoader.load('data/sounds/Clock_bgm.m4a', function (buffer) {
+        bgm.setBuffer(buffer);
+        bgm.setLoop(true);
+        bgm.setVolume(0.15);
+    });
+
     const dataKeys = ['gameData'];
     const modelURLs = ['data/objects/character/plant1.glb'];
 
     const gameDataPromises = dataKeys.map(key => loadGameData(key));
     const modelPromises = modelURLs.map(url => loadModel(url));
-
     Promise.all([...gameDataPromises, ...modelPromises])
         .then((results) => {
             gameData = results.slice(0, dataKeys.length)[0];
@@ -253,6 +261,7 @@ function loadAllAssets() {
 }
 
 function handleWin() {
+    pauseAudio();
     showMessage("Congratulations! You have completed the game!", 3000, 1);
     animationInProgress = true;
 
@@ -304,7 +313,6 @@ function init(){
 
     // Create scene
     scene = new THREE.Scene();
-    // Load texture for background
     scene.background = new THREE.Color(0xD2B48C);
 
     // Create camera
@@ -545,6 +553,28 @@ function handleGoals() {
     }
 }
 
+function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
+    let currentGain = bgm.gain.gain.value;
+    let fadeOutStep = currentGain / fadeOutDuration / fadeOutSteps;
+    let stepCount = 0;
+
+    function fadeOutAudio() {
+        if (stepCount < fadeOutSteps) {
+            // Decrease the volume gently
+            bgm.gain.gain.value = currentGain - (fadeOutStep * stepCount);
+            stepCount++;
+            requestAnimationFrame(fadeOutAudio);
+        } else {
+            // Once the fade out is complete, you can stop the audio
+            bgm.pause();
+            bgm.gain.gain.value = currentGain;
+        }
+    }
+
+    // Trigger the fade-out effect when you want
+    fadeOutAudio();
+}
+
 loadAllAssets();
 
 // Keyboard event listener
@@ -557,8 +587,13 @@ window.addEventListener('touchend', onMouseUp, false);
 
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
+    if(autoMusicTrigger){
+        bgm.play();
+        autoMusicTrigger = false;
+        showMessage("Playing background music!");
+    }
+
     if(animationInProgress) {
-        console.log("Animation in progress");
         return;
     }
 

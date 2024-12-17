@@ -117,8 +117,34 @@
     <div class="separator"></div>
     <p>Explore time and space...</p>
 </div>
+<script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.169.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.169.0/examples/jsm/"
+        }
+    }
+</script>
+<script type="module">
+    import * as THREE from 'three'; // 导入 Three.js
+    let bgm, autoMusicTrigger = true;
+    const audioLoader = new THREE.AudioLoader();
+    const listener = new THREE.AudioListener();
 
-<script>
+    bgm = new THREE.Audio(listener);
+    audioLoader.load('data/sounds/Main_bgm.m4a', function (buffer) {
+        bgm.setBuffer(buffer);
+        bgm.setLoop(true);
+        bgm.setVolume(0.15);
+    });
+
+    document.addEventListener('mousedown', function() {
+        if (autoMusicTrigger) {
+            bgm.play();
+            autoMusicTrigger = false;
+        }
+    });
+
     // 为 Start 按钮添加跳转功能
     document.getElementById('start-button').addEventListener('click', function() {
         window.location.href = 'bigworld.html'; // 跳转到 start.html

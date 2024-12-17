@@ -14,6 +14,9 @@ let building, fences, player, target, gate, water, sky, sun;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
 let gameData, playerData, positionData, gameMode;
+const audioLoader = new THREE.AudioLoader();
+const listener = new THREE.AudioListener();
+let bgm, autoMusicTrigger = true;
 
 // Player upgrade
 let selectedPlayerIndex = 0;
@@ -102,6 +105,13 @@ function loadGameData(key) {
 }
 
 function loadAllAssets() {
+    bgm = new THREE.Audio(listener);
+    audioLoader.load('data/sounds/World_bgm.m4a', function (buffer) {
+        bgm.setBuffer(buffer);
+        bgm.setLoop(true);
+        bgm.setVolume(0.3);
+    });
+
     const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg',
         'data/textures/waternormals.png'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb',
@@ -844,6 +854,7 @@ function tryAttack() {
         localStorage.setItem('positionData', JSON.stringify(positionData));
         console.log("Storing position data in localStorage: ", positionData);
 
+        pauseAudio();
         animateAttack(player, building);
         setTimeout(() => {
             if (gameMode === 1)
@@ -893,6 +904,28 @@ function animate() {
     renderer.render(scene, camera);
 }
 
+function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
+    let currentGain = bgm.gain.gain.value;
+    let fadeOutStep = currentGain / fadeOutDuration / fadeOutSteps;
+    let stepCount = 0;
+
+    function fadeOutAudio() {
+        if (stepCount < fadeOutSteps) {
+            // Decrease the volume gently
+            bgm.gain.gain.value = currentGain - (fadeOutStep * stepCount);
+            stepCount++;
+            requestAnimationFrame(fadeOutAudio);
+        } else {
+            // Once the fade out is complete, you can stop the audio
+            bgm.pause();
+            bgm.gain.gain.value = currentGain;
+        }
+    }
+
+    // Trigger the fade-out effect when you want
+    fadeOutAudio();
+}
+
 loadAllAssets();
 
 // Key press event listeners
@@ -900,7 +933,12 @@ document.addEventListener('keydown', (event) => {
     keys[event.key] = true;
     if (keys['r']) {
         console.log("Reset game data.");
-        localStorage.removeItem('gameData');
+        const gameData = {
+            level: 1,
+            score: 0,
+            state: "world",
+        }
+        localStorage.setItem('gameData', JSON.stringify(gameData));
         const playerData = [
             {
                 id: 1,
@@ -944,10 +982,15 @@ document.addEventListener('keydown', (event) => {
     }
     if (keys['f'] && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
+            pauseAudio();
+            showMessage("Entering the next stage!");
+
             gameData.level += 1;
             gameData.state = "path";
             localStorage.setItem('gameData', JSON.stringify(gameData));
-            window.location.href = 'path.html';
+            setTimeout(() => {
+                window.location.href = 'path.html';
+            }, 1000);
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1015,6 +1058,11 @@ window.addEventListener('wheel', (event) => {
 }, false);
 window.addEventListener('mousedown', onMouseDown, false);
 function onMouseDown() {
+    if(autoMusicTrigger){
+        showMessage("Music is playing!");
+        bgm.play();
+        autoMusicTrigger = false;
+    }
     if (panelOpen || isMobile()) return;
     if(!controls.isLocked) controls.lock();
     if (gameData.state === "win") return;
@@ -1034,10 +1082,15 @@ document.getElementById("attackButton").addEventListener("click", function (){
     if(panelOpen) return;
     if(gameData.state === "win"){
         if (player.position.distanceTo(gate.position) <= 4) {
+            pauseAudio();
+            showMessage("Entering the next stage!");
+
             gameData.level += 1;
             gameData.state = "path";
             localStorage.setItem('gameData', JSON.stringify(gameData));
-            window.location.href = 'path.html';
+            setTimeout(() => {
+                window.location.href = 'path.html';
+            }, 1000);
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1052,6 +1105,12 @@ document.addEventListener('touchmove', onTouchMove, false);
 document.addEventListener('touchend', onTouchEnd, false);
 
 function onTouchStart(event) {
+    if(autoMusicTrigger){
+        showMessage("Music is playing!");
+        bgm.play();
+        autoMusicTrigger = false;
+    }
+
     // Check if the touch position is in the joystick area
     const touchX = event.touches[event.touches.length - 1].pageX;
     const touchY = event.touches[event.touches.length - 1].pageY;
