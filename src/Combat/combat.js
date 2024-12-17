@@ -1403,16 +1403,6 @@ function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
     fadeOutAudio();
 }
 
-function worldToScreen(position) {
-    // Project 3D world position to normalized device coordinates (NDC)
-    let vector = position.clone().project(camera);
-
-    // Convert NDC to screen space coordinates
-    let x = (vector.x + 1) / 2 * (0.6 * window.innerWidth);  // x = 0 to window.innerWidth
-    let y = -(vector.y - 1) / 2 * (0.6 * window.innerHeight);  // y = 0 to window.innerHeight
-    return { x: x, y: y };
-}
-
 loadAllAssets();
 
 // Handle window resizing
