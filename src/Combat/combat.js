@@ -12,8 +12,7 @@ const listener = new THREE.AudioListener();
 let automaticMusicTrigger = true;
 
 // Function to handle swipes (drag or touch)
-let startX = 0;
-let isSwiping = false;
+let startX = 0, isSwiping = false;
 
 // Action sequence panel
 const actionContainer = document.getElementById('action-sequence');
@@ -69,13 +68,13 @@ let initPlayers = [
     new Player(2, "Player 2", 90, 10000, 10000, 100, 100, 0.6, 2, 190, skillSet),
     new Player(3, "Player 3", 90, 10000, 10000, 100, 100, 0.6, 2, 215, skillSet)
 ];
-let allPlayers, energy;
+let allPlayers, allEnemies, energy;
 let initEnemies = [
     new Enemy(1, "Enemy 1", 90, 10000, 10000, 100, 80, 0.6, 2, 200, skillSet),
     new Enemy(2, "Enemy 2", 90, 7000, 7000, 150, 70, 0.7, 2, 190, skillSet),
     new Enemy(3, "Enemy 3", 90, 15000, 15000, 100, 100, 0.6, 1.5, 170, skillSet),
 ];
-let allEnemies;
+let actRounds = {};
 
 // For action controls
 let activePlayer;
@@ -116,8 +115,8 @@ function loadModel(url) {
                 model.scale.setScalar(0.1);
                 res = model;
             } else {
-                model.scene.children[0].scale.set(1.2, 1.2, 1.2);
-                res = model.scene.children[0];
+                res = model.scene;
+                res.scale.set(1.2, 1.2, 1.2);
             }
             resolve(res);
         }, (xhr) => {
@@ -145,7 +144,8 @@ function loadGameData(key) {
 
 function loadAllAssets() {
     const textureURLs = ['data/textures/grassy_terrain.jpg'];
-    const modelURLs = ['data/models/cube_character.glb', "data/models/cube_monster.glb"];
+    const modelURLs = ['data/models/cube_character.glb', "data/models/cube_monster.glb", "data/models/cube_monster2.glb",
+        "data/models/cube_monster3.glb"];
     const dataKeys = ['gameData', 'playerData']
     const soundURLs = [
         'data/sounds/Buff.mp3',
@@ -327,6 +327,7 @@ function initGame() {
     });
     allEnemies = [];
     initEnemies.forEach(enemy => {
+        actRounds[enemy.id] = 0;
         allEnemies.push(new Enemy(enemy.id, enemy.name, enemy.lv, enemy.maxHp, enemy.hp, enemy.atk, enemy.def, enemy.crit_rate, enemy.crit_dmg, enemy.speed, enemy.skills));
     });
 
@@ -362,6 +363,7 @@ function createCubes() {
 
         // Add the cube to the scene
         cube.position.set(player.id * 2 - 4, 0, 3);
+        cube.rotation.y += Math.PI / 2;
         cube.castShadow = true;
         cube.receiveShadow = true;
         scene.add(cube);
@@ -393,11 +395,13 @@ function createCubes() {
     });
 
     allEnemies.forEach(enemy => {
-        const cube = loadedModels[1].clone();
+        const cube = loadedModels[enemy.id].clone();
         cube.scale.set(1.7, 1.7, 1.7);
+        const hpbarYOffset = (enemy.id === 1) ? 0: 0.7;
 
         // Add the cube to the scene
-        cube.position.set(enemy.id * 2 - 4, 0, -3);
+        cube.position.set(enemy.id * 2 - 4, -hpbarYOffset, -3);
+        cube.rotation.y -= Math.PI / 2;
         cube.castShadow = true;
         cube.receiveShadow = true;
         scene.add(cube);
@@ -410,7 +414,7 @@ function createCubes() {
         const hpBarBg = new THREE.Mesh(hpBarBgGeometry, hpBarBgMaterial);
 
         // Position the HP bar background just above the enemy cube
-        hpBarBg.position.set(cube.position.x, cube.position.y + 1.25, cube.position.z);
+        hpBarBg.position.set(cube.position.x, cube.position.y +hpbarYOffset + 1.25, cube.position.z);
         scene.add(hpBarBg);
         enemy.hpBarBg = hpBarBg;
 
@@ -423,7 +427,7 @@ function createCubes() {
         hpBar.name = `hpBar_enemy_${enemy.id}`;
 
         // Position the HP bar just above the enemy cube, slightly in front of the background
-        hpBar.position.set(cube.position.x, cube.position.y + 1.25, cube.position.z + 0.01);
+        hpBar.position.set(cube.position.x, cube.position.y + hpbarYOffset + 1.25, cube.position.z + 0.01);
         scene.add(hpBar);
         enemy.hpBar = hpBar;
     });
@@ -563,8 +567,20 @@ function shakeScreen(intensity = 1, duration = 200) {
 function animateAttack(attacker, target) {
     const attackerCube = attacker.cube;
     const targetCube = target.cube;
+
     const originalPosition = attackerCube.position.clone();
+    const originalRotation = attackerCube.rotation.clone();
     const targetPosition = targetCube.position.clone();
+
+    // Let attackerCube face the target
+    const targetPos = targetCube.position.clone();
+    targetPos.y = attackerCube.position.y;
+    attackerCube.lookAt(targetPos);
+    if(attacker instanceof Enemy) {
+        attackerCube.rotation.y -= Math.PI / 2;
+    } else {
+        attackerCube.rotation.y += Math.PI / 2;
+    }
 
     // Calculate the mid-point to create an arc
     const midPoint = originalPosition.clone().lerp(targetPosition, 0.5);
@@ -607,6 +623,7 @@ function animateAttack(attacker, target) {
                 } else {
                     // Ensure the attacker is back at the original position
                     attackerCube.position.copy(originalPosition);
+                    attackerCube.rotation.copy(originalRotation);
                 }
             }
 
@@ -621,10 +638,18 @@ function animateAttack(attacker, target) {
 
 // Disable / enable buttons
 function toggleButtons(enabled = true) {
-    document.getElementById('attackButton').disabled = !enabled;
-    document.getElementById('skillButton').disabled = !(enabled && skillDots >= 1);
-    document.getElementById('hyperSkillButton').disabled = !(enabled && energy[activePlayer.id] === 100);
-
+    if(enabled){
+        setTimeout(() => {
+            document.getElementById('attackButton').disabled = false;
+            document.getElementById('skillButton').disabled = !(skillDots >= 1);
+            if(activePlayer && allPlayers.includes(activePlayer))
+                document.getElementById('hyperSkillButton').disabled = !(energy[activePlayer.id] === 100);
+        }, 500);
+    } else {
+        document.getElementById('attackButton').disabled = true;
+        document.getElementById('skillButton').disabled = true;
+        document.getElementById('hyperSkillButton').disabled = true;
+    }
 }
 
 // Animate a boost
@@ -774,6 +799,18 @@ function startRound() {
     round += 1;
     document.getElementById('round-indicator').textContent = 'Round ' + round;
 
+    if(round >= 5){
+        showMessage("The enemies are entering a frenzy!", 1500, 2);
+        allEnemies.forEach(enemy => {
+            enemy.atk += 100 * (round - 5);
+            enemy.def += 100 * (round - 5);
+            enemy.speed += 70 * (round - 5);
+        });
+        allEnemies.forEach(enemy => {
+            animateBoostEffect(enemy, true);
+        });
+    }
+
     // Reset the status of all players and enemies
     allPlayers.forEach(player => {
         let init_player = initPlayers.find(initPlayer => initPlayer.id === player.id);
@@ -806,7 +843,9 @@ function startRound() {
     const moveVal = actionQ.elements[0].index;
     currentVal += moveVal;
     progressVal(moveVal);
-    nextAction();
+    setTimeout(() => {
+        nextAction();
+    }, 500);
 }
 
 // Update the hp bars and status panel
@@ -971,17 +1010,20 @@ function targetSelector(targetType) {
 
             // Set the new selection
             currentTargetCube = selectedObject;
-            positionSelectionIndicator(currentTargetCube);
+            while(!currentTargetCube.isGroup)
+                currentTargetCube = currentTargetCube.parent;
+
             allEnemies.forEach(enemy => {
-                if (enemy.cube === selectedObject) {
+                if (enemy.cube === currentTargetCube) {
                     currentTarget = enemy;
                 }
             });
             allPlayers.forEach(player => {
-                if (player.cube === selectedObject) {
+                if (player.cube === currentTargetCube) {
                     currentTarget = player;
                 }
             });
+            positionSelectionIndicator(currentTargetCube);
         }
     }
 
@@ -1001,6 +1043,9 @@ function targetSelector(targetType) {
     function positionSelectionIndicator(selectedObject) {
         selectionIndicator.visible = true;
         selectionIndicator.position.set(selectedObject.position.x, selectedObject.position.y, selectedObject.position.z);
+        if(targetType === 'enemy' && currentTarget.id !== 1) {
+            selectionIndicator.position.y += 0.7;
+        }
     }
 
     function deselectCurrentSelection() {
@@ -1064,19 +1109,24 @@ function afterAction(proceed = true) {
         stopTargetSelector();
         showMessage("You lost! Game over!");
     }
-    if (allEnemies.length === 0)
+    if (allEnemies.length === 0) {
         handleWin();
+        return;
+    }
 
     if (!proceed) return;
 
     // Update action value for all players
     activePlayer = null;
+    currentTarget = null;
     actionQ.dequeue();
     if (!actionQ.isEmpty()) {
         const moveVal = actionQ.elements[0].index;
         currentVal += moveVal;
         progressVal(moveVal);
-        nextAction();
+        setTimeout(() => {
+            nextAction();
+        }, 500);
     } else {
         // Start a new round
         currentVal = 0;
@@ -1110,7 +1160,7 @@ function nextAction() {
         // Auto select the target assuming an attack
         updateStatusPanel();
         attackMethod = 1;
-        document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
+        document.getElementById('attackButton').className = 'active-button';
         stopTargetSelector();
         toggleButtons(true);
         targetSelector('enemy');
@@ -1118,20 +1168,123 @@ function nextAction() {
         toggleButtons(false);
         console.log("Enemy " + info.playerId + " is acting!");
         activePlayer = allEnemies.find(enemy => enemy.id === info.playerId);
-
-        // Adjust camera pos
-        animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.3);
+        actRounds[info.playerId] += 1;
 
         // Randomly select a player to attack
         const randomIndex = Math.floor(Math.random() * allPlayers.length);
         energy[randomIndex] += 10;
-        activePlayer.useSkill(0, allPlayers[randomIndex]);
-        animateAttack(activePlayer, allPlayers[randomIndex]);
-        setTimeout(afterAction, 1100);
+        currentTarget = allPlayers[randomIndex];
+
+        if(actRounds[activePlayer.id] % 4 === 2) {
+            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.3);
+            enemySkill1(activePlayer);
+            setTimeout(afterAction, 1100);
+        } else if (actRounds[activePlayer.id] % 4 === 0) {
+            enemyHyperSkill(activePlayer);
+        } else {
+            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.3);
+            if(actRounds[activePlayer.id] % 4 === 3){
+                showMessage(activePlayer.name + " is charging energy!", 1500, 2);
+            }
+            activePlayer.useSkill(0, allPlayers[randomIndex]);
+            animateAttack(activePlayer, allPlayers[randomIndex]);
+            setTimeout(afterAction, 1100);
+        }
     }
 }
 
 // Skills
+function enemySkill1(attacker) {
+    currentTarget.onDamage(attacker, 10);
+    animateAttack(attacker, currentTarget);
+    allEnemies.forEach(enemy => {
+        enemy.onHeal(1500);
+    });
+
+    setTimeout(() => {
+        speedUp(currentTarget, -70);
+        const debuff = new Buff("atk_debuff", "incAtk", -50, 1, [currentTarget]);
+        debuff.applyEffect();
+        animateBoostEffect(currentTarget, false);
+        setTimeout(() => {
+            afterAction();
+        }, 500);
+    }, 600);
+}
+
+function enemyHyperSkill(attacker) {
+    stopTargetSelector();
+    toggleButtons(false);
+
+    animateCameraMove(new THREE.Vector3(0, 5, 12), new THREE.Vector3(0, 0, 0), 75, 1.5);
+    setTimeout(() => {
+        animateHyperAttack(attacker);
+        setTimeout(() => {
+            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
+            setTimeout(() =>{
+                afterAction(false);
+                nextAction();
+            }, 1500);
+        }, 1600);
+    }, 1300);
+
+    function animateHyperAttack(attacker) {
+        const playerCube = attacker.cube;
+
+        // Create an animation for the player attack using GSAP
+        const originalPosition = playerCube.position.clone();
+        const originalScale = playerCube.scale.clone();
+        const enemyPosition = allPlayers[Math.floor(allPlayers.length / 2)].cube.position.clone();
+
+        // Animation sequence: Jump up, grow, and smash into enemies
+        gsap.timeline()
+            .to(playerCube.position, {y: originalPosition.y + 3, duration: 0.5, ease: "power2.out"}) // Jump up
+            .to(playerCube.scale, {x: 7, y: 7, z: 7, duration: 0.3, ease: "power2.out"}) // Grow
+            .to(playerCube.position, {
+                x: enemyPosition.x,
+                y: enemyPosition.y + 6,
+                z: enemyPosition.z,
+                duration: 0.5,
+                ease: "bounce.out",
+            })
+            .to(playerCube.position, {
+                x: enemyPosition.x,
+                y: enemyPosition.y,
+                z: enemyPosition.z,
+                duration: 0.5,
+                ease: "bounce.out",
+                onComplete: () => { // Smash down
+                    // Check for collisions with enemies
+                    allPlayers.forEach(enemy => {
+                        enemy.onLoseHp(10 * attacker.atk);
+                        speedUp(enemy, -20);
+                        animateBoostEffect(enemy, false);
+                    });
+                    loadedSounds.forEach(sound => {
+                        if (sound.name.includes("Attack.wav"))
+                            sound.play();
+                    });
+                    afterAction(false);
+                    toggleButtons(false);
+                }
+            })
+            .to(playerCube.scale, {
+                x: originalScale.x,
+                y: originalScale.y,
+                z: originalScale.z,
+                duration: 0.3,
+                ease: "power2.in"
+            }) // Reset size
+            .to(playerCube.position, {
+                x: originalPosition.x,
+                y: originalPosition.y,
+                z: originalPosition.z,
+                duration: 0.3,
+                ease: "power2.in"
+            }); // Reset position
+    }
+}
+
 function skill1(attacker) {
     currentTarget.onDamage(attacker, 10);
     animateAttack(attacker, currentTarget);
@@ -1157,7 +1310,10 @@ function skill2(attacker) {
 }
 
 function skill3(attacker) {
-    currentTarget.onHeal(1500);
+    currentTarget.onHeal(1500 + 0.1 * currentTarget.maxHp);
+    allPlayers.forEach(player => {
+        player.onHeal(1500);
+    });
     const buff = new Buff("atk_buff", "incAtk", 50, 1, [currentTarget]);
     buff.applyEffect();
     if(currentTarget.id !== attacker.id) {
@@ -1265,7 +1421,7 @@ function hyperSkill2(attacker) {
         showMessage("You have " + ammo + " ammos left!", 1000);
 
         document.getElementById('ActButton').style.display = 'block';
-        document.getElementById('ActButton').style.backgroundColor = 'rgb(255,234,0)';
+        document.getElementById('ActButton').className = 'active-button';
         document.getElementById('ActButton').addEventListener('click', onClick);
     }, 1500);
 
@@ -1428,7 +1584,7 @@ document.getElementById('attackButton').addEventListener('click', function onCli
     if (attackMethod === 1) {
         skillDots++;
         energy[activePlayer.id] += 20;
-        document.getElementById('attackButton').style.backgroundColor = '';
+        document.getElementById('attackButton').className = 'menu-button';
         toggleButtons(false);
         stopTargetSelector();
 
@@ -1440,9 +1596,9 @@ document.getElementById('attackButton').addEventListener('click', function onCli
     } else {
         stopTargetSelector();
         attackMethod = 1;
-        document.getElementById('attackButton').style.backgroundColor = 'rgb(255,234,0)';
-        document.getElementById('skillButton').style.backgroundColor = '';
-        document.getElementById('hyperSkillButton').style.backgroundColor = '';
+        document.getElementById('attackButton').className = 'active-button';
+        document.getElementById('skillButton').className = 'menu-button';
+        document.getElementById('hyperSkillButton').className = 'menu-button';
         targetSelector('enemy');
         if(activePlayer.id === 3){
             const playerPos = activePlayer.cube.position.clone();
@@ -1457,7 +1613,7 @@ document.getElementById('skillButton').addEventListener('click', function onClic
     if (attackMethod === 2) {
         skillDots--;
         energy[activePlayer.id] += 30;
-        document.getElementById('skillButton').style.backgroundColor = '';
+        document.getElementById('skillButton').className = 'menu-button';
         toggleButtons(false);
         stopTargetSelector();
 
@@ -1489,15 +1645,15 @@ document.getElementById('skillButton').addEventListener('click', function onClic
 
         stopTargetSelector();
         attackMethod = 2;
-        document.getElementById('attackButton').style.backgroundColor = '';
-        document.getElementById('skillButton').style.backgroundColor = 'rgb(255,234,0)';
-        document.getElementById('hyperSkillButton').style.backgroundColor = '';
+        document.getElementById('attackButton').className = 'menu-button';
+        document.getElementById('skillButton').className = 'active-button';
+        document.getElementById('hyperSkillButton').className = 'menu-button';
         targetSelector(skillTarget);
     }
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
     if (attackMethod === 3){
-        document.getElementById('skillButton').style.backgroundColor = '';
+        document.getElementById('skillButton').className = 'menu-button';
         toggleButtons(false);
         stopTargetSelector();
         energy[activePlayer.id] = 0;
@@ -1528,9 +1684,9 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
                 showMessage("Hyper Skill 3: speed up all players and buff their attack!", 2000);
                 break;
         }
-        document.getElementById('attackButton').style.backgroundColor = '';
-        document.getElementById('skillButton').style.backgroundColor = '';
-        document.getElementById('hyperSkillButton').style.backgroundColor = 'rgb(255,234,0)';
+        document.getElementById('attackButton').className = 'menu-button';
+        document.getElementById('skillButton').className = 'menu-button';
+        document.getElementById('hyperSkillButton').className = 'active-button';
     }
 });
 
@@ -1582,7 +1738,8 @@ const tutorialData = [
         image: "data/tutorial/combat/actions.png",
         text: "When it's your turn, you can choose to attack or use a skill. Each player has a unique skill with unique effects.\n" +
             "You can check out the skills by clicking on the corresponding buttons.\n" +
-            "You can also use hyper skills, which are powerful abilities that can turn the tide of battle.\n" +
+            "You will need skill-dots to use skills. You can gain skill-dots by using normal attacks.\n" +
+            "When your energy is full, use hyper skills, which are powerful abilities that do NOT cost your round.\n" +
             "Try to defeat all the enemies before they defeat you!"
     },
     {

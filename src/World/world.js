@@ -29,7 +29,7 @@ const minPitch = THREE.MathUtils.degToRad(80);
 // Movement controls
 const keys = {};
 let obstacles = []; // List of objects to check for transparency
-let playerFacingOffset = 0;
+let playerFacingOffset = Math.PI / 2;
 
 // Mobile controls
 let touchStartX = 0, touchStartY = 0;
@@ -77,7 +77,7 @@ function loadModel(url) {
                 model.scale.set(0.1, 0.1, 0.1);
                 res = model;
             } else {
-                groundLevel = 0.25;
+                groundLevel = 0.5;
                 res = model.scene.children[0];
             }
             resolve(res);

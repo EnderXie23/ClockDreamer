@@ -130,6 +130,60 @@ button {
     display: none;
 }
 
+.menu-button {
+    display: block;
+    padding: 10px 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffffff;
+    background: linear-gradient(145deg, #6b4f25, #9b6a2d); /* 暗黄色系立体渐变 */
+    border: none;
+    border-radius: 30px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    width: max-content;
+}
+
+.active-button {
+    display: block;
+    padding: 10px 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffffff;
+    background: linear-gradient(145deg, #fbf244, #dfc450); /* 暗黄色系立体渐变 */
+    border: none;
+    border-radius: 30px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    width: max-content;
+}
+
+.active-button:hover {
+    box-shadow: 0 4px 15px rgba(245, 146, 35, 0.6);
+    transform: translateY(-3px);
+}
+
+.menu-button:hover {
+    background: linear-gradient(145deg, #fbf244, #dfc450);
+    box-shadow: 0 4px 15px rgba(245, 146, 35, 0.6);
+    transform: translateY(-3px);
+}
+
+.menu-button:disabled {
+    background: linear-gradient(145deg, #403b34, #807c6f);
+    color: #ffffff;
+    cursor: not-allowed;
+}
+
+.menu-button:active {
+    transform: scale(0.98);
+    box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.6);
+}
+
 .message-box {
     position: static;
     width: max-content;
@@ -204,8 +258,6 @@ button {
 #hp-loss {
     position:fixed;
     display: flex;
-    opacity: 0;
-    transition: 0.5s ease-in-out;
     font-family: 'Arial', sans-serif;
     font-size: 1.5em;
 }

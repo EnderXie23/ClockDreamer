@@ -118,13 +118,22 @@ class Character {
         this.hp -= amount;
         console.log(`Character ${this.id}: ${this.name} took ${amount} damage!`);
 
-        document.getElementById('hp-loss').innerHTML = `-${amount}`;
-        document.getElementById('hp-loss').style.color = 'red';
-        document.getElementById('hp-loss').style.opacity = 1;
-        document.getElementById('hp-loss').style.top = `${worldToScreen(this.cube.position).y}px`;
-        document.getElementById('hp-loss').style.left = `${worldToScreen(this.cube.position).x}px`;
+        // Append new <p> element to display damage taken
+        let tagId = 'hp-loss'+this.id;
+        let tag = document.createElement('p', { id: tagId });
+        document.getElementById('hp-loss').appendChild(tag);
+        tag.innerHTML = `-${amount}`;
+        tag.style.color = 'red';
+        tag.style.position = 'fixed';
+        tag.style.transition = 'opacity 0.5s';
+        tag.style.opacity = 1;
+        tag.style.top = `${worldToScreen(this.cube.position).y}px`;
+        tag.style.left = `${worldToScreen(this.cube.position).x}px`;
         setTimeout(() => {
-            document.getElementById('hp-loss').style.opacity = 0;
+            tag.style.opacity = 0;
+            setTimeout(() => {
+                tag.remove();
+            }, 500);
         }, 500);
 
         if (this.hp <= 0) {
@@ -142,14 +151,23 @@ class Character {
         this.hp += amount;
         this.hp = Math.min(this.hp, this.maxHp);
 
-        document.getElementById('hp-loss').innerHTML = `+${amount}`;
-        document.getElementById('hp-loss').style.color = 'green';
-        document.getElementById('hp-loss').style.opacity = 1;
-        document.getElementById('hp-loss').style.top = `${worldToScreen(this.cube.position).y}px`;
-        document.getElementById('hp-loss').style.left = `${worldToScreen(this.cube.position).x}px`;
+        let tagId = 'hp-inc'+this.id;
+        let tag = document.createElement('p', { id: tagId });
+        document.getElementById('hp-loss').appendChild(tag);
+        tag.innerHTML = `+${amount}`;
+        tag.style.color = 'green';
+        tag.style.position = 'fixed';
+        tag.style.transition = 'opacity 0.5s';
+        tag.style.opacity = 1;
+        tag.style.top = `${worldToScreen(this.cube.position).y}px`;
+        tag.style.left = `${worldToScreen(this.cube.position).x}px`;
         setTimeout(() => {
-            document.getElementById('hp-loss').style.opacity = 0;
+            tag.style.opacity = 0;
+            setTimeout(() => {
+                tag.remove();
+            }, 500);
         }, 500);
+
         console.log(`Character ${this.id}: ${this.name} healed for ${amount}!`);
     }
 }
