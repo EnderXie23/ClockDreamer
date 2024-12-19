@@ -75,6 +75,7 @@ let initEnemies = [
     new Enemy(3, "Enemy 3", 90, 15000, 15000, 100, 100, 0.6, 1.5, 170, skillSet),
 ];
 let actRounds = {};
+let currentChoice = 0; // The player model choice
 
 // For action controls
 let activePlayer;
@@ -136,17 +137,16 @@ function loadGameData(key) {
             resolve(gameData);
         } else {
             console.error('No data: ' + key + ' found in localStorage.');
-            // resolve({});
-            reject();
+            resolve(null);
         }
     });
 }
 
 function loadAllAssets() {
     const textureURLs = ['data/textures/grassy_terrain.jpg'];
-    const modelURLs = ['data/models/cube_character.glb', "data/models/cube_monster.glb", "data/models/cube_monster2.glb",
-        "data/models/cube_monster3.glb"];
-    const dataKeys = ['gameData', 'playerData']
+    const modelURLs = ['data/models/cube_character.glb', 'data/models/cube_character2.glb','data/models/cube_character3.glb',
+        "data/models/cube_monster.glb", "data/models/cube_monster2.glb", "data/models/cube_monster3.glb"];
+    const dataKeys = ['gameData', 'playerData', 'modelData']
     const soundURLs = [
         'data/sounds/Buff.mp3',
         'data/sounds/Debuff.wav',
@@ -176,13 +176,13 @@ function loadAllAssets() {
 
     Promise.all([...texturePromises, ...modelPromises, ...gameDataPromise])
         .then((results) => {
-            console.log(results);
             loadedTextures = results.slice(0, texturePromises.length);
             loadedModels = results.slice(texturePromises.length, texturePromises.length + modelPromises.length);
             const loadedData = results.slice(texturePromises.length + modelPromises.length
                 , texturePromises.length + modelPromises.length + dataKeys.length);
             gameData = loadedData[0];
             playerData = loadedData[1];
+            if(loadedData[2]) currentChoice = loadedData[2];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
@@ -359,7 +359,7 @@ function initGame() {
 // Create cubes for players and enemies
 function createCubes() {
     allPlayers.forEach(player => {
-        const cube = loadedModels[0].clone();
+        const cube = loadedModels[currentChoice].clone();
 
         // Add the cube to the scene
         cube.position.set(player.id * 2 - 4, 0, 3);
@@ -395,7 +395,7 @@ function createCubes() {
     });
 
     allEnemies.forEach(enemy => {
-        const cube = loadedModels[enemy.id].clone();
+        const cube = loadedModels[enemy.id + 2].clone();
         cube.scale.set(1.7, 1.7, 1.7);
         const hpbarYOffset = (enemy.id === 1) ? 0: 0.7;
 
@@ -782,6 +782,13 @@ function filterActions() {
     actionQ.elements = actionQ.elements.filter(action => action.PlayerInfo.speed > 0);
     actionQ.elements = actionQ.elements.filter(action => action.index <= action.PlayerInfo.actionVal);
 
+    // Make actionQ.elements unique
+    let uniqueActions = [];
+    actionQ.elements.forEach(action => {
+        if (!uniqueActions.find(uniqueAction => uniqueAction.PlayerInfo.playerId === action.PlayerInfo.playerId && uniqueAction.index === action.index))
+            uniqueActions.push(action);
+    });
+    actionQ.elements = uniqueActions;
     actionQ.elements.sort((a, b) => a.index - b.index);
     progressVal(0);
 }
@@ -798,18 +805,6 @@ function applyBuffs() {
 function startRound() {
     round += 1;
     document.getElementById('round-indicator').textContent = 'Round ' + round;
-
-    if(round >= 5){
-        showMessage("The enemies are entering a frenzy!", 1500, 2);
-        allEnemies.forEach(enemy => {
-            enemy.atk += 100 * (round - 5);
-            enemy.def += 100 * (round - 5);
-            enemy.speed += 70 * (round - 5);
-        });
-        allEnemies.forEach(enemy => {
-            animateBoostEffect(enemy, true);
-        });
-    }
 
     // Reset the status of all players and enemies
     allPlayers.forEach(player => {
@@ -832,6 +827,18 @@ function startRound() {
         let info = new PlayerInfo(enemy.id, enemy.speed, "enemy");
         actionQ.enqueue(info.dist / enemy.speed, info);
     });
+
+    if(round >= 4){
+        showMessage("The enemies are entering a frenzy!", 1500, 2);
+        allEnemies.forEach(enemy => {
+            enemy.atk += 30 * (round - 3);
+            enemy.def += 100 * (round - 3);
+            enemy.speed += 70 * (round - 3);
+        });
+        allEnemies.forEach(enemy => {
+            animateBoostEffect(enemy, true);
+        });
+    }
 
     // Apply all the buffs
     applyBuffs();
@@ -1061,6 +1068,67 @@ function stopTargetSelector() {
     selectionIndicator.visible = false;
 }
 
+function handleLose() {
+    stopTargetSelector();
+    pauseAudio();
+    showMessage("You lost! Game over!");
+    if(camera.position.x !== 3 || camera.position.y !== 4 || camera.position.z !== 7) {
+        animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.1);
+    }
+
+    // Store player data
+    console.log("Reset game data.");
+    const gameData = {
+        level: 1,
+        score: 0,
+        state: "path",
+    }
+    localStorage.setItem('gameData', JSON.stringify(gameData));
+    const playerData = [
+        {
+            id: 1,
+            name: "Player 1",
+            lv: 90,
+            maxHp: 10000,
+            hp: 10000,
+            atk: 100,
+            def: 100,
+            crit_rate: 0.6,
+            crit_dmg: 2,
+            speed: 230
+        },
+        {
+            id: 2,
+            name: "Player 2",
+            lv: 90,
+            maxHp: 10000,
+            hp: 10000,
+            atk: 100,
+            def: 100,
+            crit_rate: 0.6,
+            crit_dmg: 2,
+            speed: 190
+        },
+        {
+            id: 3,
+            name: "Player 3",
+            lv: 90,
+            maxHp: 10000,
+            hp: 10000,
+            atk: 100,
+            def: 100,
+            crit_rate: 0.6,
+            crit_dmg: 2,
+            speed: 215
+        },
+    ]
+    localStorage.setItem('playerData', JSON.stringify(playerData));
+    console.log("Player data stored in localStorage: ", playerData);
+    setTimeout(() => {
+        window.location.href = "path.html";
+    }, 1500);
+}
+
 function handleWin() {
     stopTargetSelector();
     pauseAudio();
@@ -1106,8 +1174,8 @@ function afterAction(proceed = true) {
 
     filterActions();
     if (allPlayers.length === 0) {
-        stopTargetSelector();
-        showMessage("You lost! Game over!");
+        handleLose();
+        return;
     }
     if (allEnemies.length === 0) {
         handleWin();
@@ -1131,14 +1199,18 @@ function afterAction(proceed = true) {
         // Start a new round
         currentVal = 0;
         startRound();
-        console.clear();
+        // console.clear();
         console.log("New round started!");
     }
 }
 
 // Handle the next action in the queue
 function nextAction() {
+    console.log("Current action q: ", actionQ.elements);
+    console.log("Current action value: ", currentVal);
+
     // Get the top player in the queue
+    actionQ.elements.sort((a, b) => a.index - b.index);
     const topPlayer = actionQ.elements[0];
     const info = topPlayer.PlayerInfo;
 
@@ -1206,9 +1278,7 @@ function enemySkill1(attacker) {
         const debuff = new Buff("atk_debuff", "incAtk", -50, 1, [currentTarget]);
         debuff.applyEffect();
         animateBoostEffect(currentTarget, false);
-        setTimeout(() => {
-            afterAction();
-        }, 500);
+        showMessage(currentTarget.name + "'s speed and attack decreased!", 1500, 2);
     }, 600);
 }
 
@@ -1220,6 +1290,7 @@ function enemyHyperSkill(attacker) {
     setTimeout(() => {
         animateHyperAttack(attacker);
         setTimeout(() => {
+            showMessage("All players have been attacked and speed decreased!", 1500, 2);
             animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
             setTimeout(() =>{
                 afterAction(false);
@@ -1256,7 +1327,12 @@ function enemyHyperSkill(attacker) {
                 onComplete: () => { // Smash down
                     // Check for collisions with enemies
                     allPlayers.forEach(enemy => {
-                        enemy.onLoseHp(10 * attacker.atk);
+                        enemy.onLoseHp(20 * attacker.atk);
+                        if(round >= 4) {
+                            setTimeout(()=>{
+                                enemy.onLoseHp((round - 4) * 10 * attacker.atk);
+                            }, 300);
+                        }
                         speedUp(enemy, -20);
                         animateBoostEffect(enemy, false);
                     });
@@ -1294,6 +1370,7 @@ function skill1(attacker) {
         const debuff = new Buff("atk_debuff", "incAtk", -50, 1, [currentTarget]);
         debuff.applyEffect();
         animateBoostEffect(currentTarget, false);
+        showMessage(currentTarget.name + "'s speed and attack decreased!", 1500);
         setTimeout(() => {
             afterAction();
         }, 500);
@@ -1316,6 +1393,7 @@ function skill3(attacker) {
     });
     const buff = new Buff("atk_buff", "incAtk", 50, 1, [currentTarget]);
     buff.applyEffect();
+    showMessage("All players healed and " + currentTarget.name + "'s attack has been increased!", 1500);
     if(currentTarget.id !== attacker.id) {
         let flag = false;
         actionQ.elements.forEach(action => {
@@ -1344,6 +1422,7 @@ function hyperSkill1(attacker) {
     setTimeout(() => {
         animateHyperAttack(attacker);
         setTimeout(() => {
+            showMessage("All enemies have been attacked and speed decreased!", 1500);
             animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
             setTimeout(() =>{
                 toggleButtons(true);
@@ -1413,7 +1492,7 @@ function hyperSkill2(attacker) {
     let ammo = 3;
     stopTargetSelector();
     const goalPos = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
-    animateCameraMove(attacker.cube.position.clone(), goalPos, 100, 1.5);
+    animateCameraMove(attacker.cube.position.clone().add(new THREE.Vector3(0, 0, -0.5)), goalPos, 100, 1.5);
     toggleButtons(false);
 
     setTimeout(() => {
@@ -1485,6 +1564,7 @@ function hyperSkill3() {
             actionForward(player, 0.45);
             animateBoostEffect(player);
             player.onHeal(0.1 * player.maxHp);
+            showMessage("All players have been speed up and healed!", 1500);
         });
         console.log("Speed up and forward action!");
         const ultraBuff = new Buff("Ultra", "incAtk", 100, 1, allPlayers);
@@ -1505,12 +1585,13 @@ function hyperSkill3() {
 // Speed up all players by val
 function speedUp(target, val) {
     target.speed += val;
+    target.speed = Math.max(target.speed, 1);
 
     actionQ.elements.forEach(action => {
         if ((action.PlayerInfo.charType === "player" && target instanceof Player)
             || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
             if (action.PlayerInfo.playerId === target.id) {
-                action.index = action.index * action.PlayerInfo.speed / (action.PlayerInfo.speed + val);
+                action.index = action.index * action.PlayerInfo.speed / Math.max(action.PlayerInfo.speed + val, 1);
                 action.PlayerInfo.speed += val;
             }
         }
@@ -1522,13 +1603,15 @@ function speedUp(target, val) {
 
 // Forward all actions by val percentage
 function actionForward(target, val) {
+    let once = true;
     // All the action dist decrease by val
     actionQ.elements.forEach(action => {
         if ((action.PlayerInfo.charType === "player" && target instanceof Player)
             || (action.PlayerInfo.charType === "enemy" && target instanceof Enemy)) {
-            if (action.PlayerInfo.playerId === target.id) {
+            if (action.PlayerInfo.playerId === target.id && once) {
                 action.index -= (action.PlayerInfo.dist * val) / action.PlayerInfo.speed;
                 action.index = Math.max(action.index, 0);
+                once = false;
             }
         }
     });
@@ -1653,7 +1736,7 @@ document.getElementById('skillButton').addEventListener('click', function onClic
 });
 document.getElementById('hyperSkillButton').addEventListener('click', function onClick() {
     if (attackMethod === 3){
-        document.getElementById('skillButton').className = 'menu-button';
+        document.getElementById('hyperSkillButton').className = 'menu-button';
         toggleButtons(false);
         stopTargetSelector();
         energy[activePlayer.id] = 0;
@@ -1669,6 +1752,7 @@ document.getElementById('hyperSkillButton').addEventListener('click', function o
                 hyperSkill3();
                 break;
         }
+
     } else {
         attackMethod = 3;
         stopTargetSelector();
@@ -1718,10 +1802,17 @@ const tutorialImage = document.getElementById("tutorial-image");
 const dotIndicator = document.getElementById("dot-indicator");
 
 let currentPage = 0;
-const totalPages = 4; // Adjust this based on the number of tutorial steps
+const totalPages = 5; // Adjust this based on the number of tutorial steps
 
 // Tutorial Data (You can add more steps as needed)
 const tutorialData = [
+    {
+        image: "data/tutorial/combat/actseq.png",
+        text: "The skill information: \n" +
+            "Player 1: Skill: Deal damage and debuff the enemy. Hyper Skill: Deal damage and speed down all enemies.\n" +
+            "Player 2: Skill: Deal great damage to the enemy. Hyper Skill: Shoot 3 ammos to target enemies.\n" +
+            "Player 3: Skill: Heal target and let it act immediately. Hyper Skill: Speed up all players and buff their attack.\n"
+    },
     {
         image: "data/tutorial/combat/actseq.png",
         text: "The action sequence is shown on the left. The player with the lowest action value will act first.\n" +

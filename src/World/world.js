@@ -22,6 +22,10 @@ let bgm, autoMusicTrigger = true;
 let selectedPlayerIndex = 0;
 let panelOpen = false;
 
+// Player cubes
+let choices = ['cube_character', 'cube_character2', 'cube_character3'];
+let currentChoice = 0;
+
 // Maximum and minimum pitch angles in radians
 const maxPitch = THREE.MathUtils.degToRad(150);
 const minPitch = THREE.MathUtils.degToRad(80);
@@ -78,7 +82,11 @@ function loadModel(url) {
                 res = model;
             } else {
                 groundLevel = 0.5;
-                res = model.scene.children[0];
+                if(url.includes('character')){
+                    res = model.scene.children[0].children[0];
+                } else {
+                    res = model.scene.children[0];
+                }
             }
             resolve(res);
         }, (xhr) => {
@@ -114,9 +122,10 @@ function loadAllAssets() {
 
     const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg',
         'data/textures/waternormals.png'];
-    const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb',
+    const modelURLs = ['data/models/cube_character.glb', 'data/models/cube_character2.glb', 'data/models/cube_character3.glb',
+        'data/models/fence.glb', 'data/models/cube_monster.glb',
         'data/models/gate.glb', "data/models/gate_off.glb"];
-    const dataKeys = ['gameData', 'playerData', 'positionData'];
+    const dataKeys = ['gameData', 'playerData', 'positionData', 'modelData'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
     const modelPromises = modelURLs.map(url => loadModel(url));
@@ -131,6 +140,7 @@ function loadAllAssets() {
             gameData = loadedData[0];
             playerData = loadedData[1];
             positionData = loadedData[2];
+            if (loadedData[3]) currentChoice = loadedData[3];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
@@ -277,8 +287,8 @@ function init() {
     controls.enablePan = true;
     controls.screenSpacePanning = false;
 
+    document.getElementById("operationPanel").style.display = "flex";
     if(isMobile()) {
-        document.getElementById("operationPanel").style.display = "flex";
         joystick = nipplejs.create({
             zone: document.getElementById("joyStick"),
             color: 'white',
@@ -297,6 +307,9 @@ function init() {
             joystickActive= false;
             keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
         });
+    } else {
+        document.getElementById("jumpButton").style.display = "none";
+        document.getElementById("attackButton").style.display = "none";
     }
 
     // Create light
@@ -373,7 +386,7 @@ function placeLayout() {
     if (gameData.state !== "win") {
         if (gameMode === 1) {
             console.log("Game mode: battle");
-            building = loadedModels[2];
+            building = loadedModels[4];
             building.scale.set(3, 3, 3);
         } else if (gameMode === 2) {
             console.log("Game mode: cube game");
@@ -399,9 +412,9 @@ function placeLayout() {
 
     // Gate
     if (gameData.state === "win") {
-        gate = loadedModels[3].children[0];
+        gate = loadedModels[5].children[0];
     } else {
-        gate = loadedModels[4].children[0];
+        gate = loadedModels[6].children[0];
     }
     gate.scale.set(1.5, 1.5, 1.5);
     gate.position.set(-8, 1.5, 0);
@@ -412,8 +425,7 @@ function placeLayout() {
     scene.add(gate);
 
     // Player
-    player = loadedModels[0];
-    player.scale.set(1.4, 1.4, 1.4);
+    player = loadedModels[currentChoice];
     player.position.set(9, groundLevel, 1);
     if(positionData){
         player.position.set(positionData.player[0], positionData.player[1], positionData.player[2]);
@@ -447,7 +459,7 @@ function placeLayout() {
 }
 
 function addFences(types, positions, facings) {
-    const fenceModel = loadedModels[1];
+    const fenceModel = loadedModels[3];
     fences = new THREE.Group();
 
     for (let i = 0; i < types.length; i++) {
@@ -880,7 +892,9 @@ function handlePanel(){
         if(!isMobile()) controls.lock();
         document.getElementById("container").style.opacity = '1';
         panelOpen = false;
+        document.getElementById("panelButton").blur();
     } else {
+        document.getElementById("player-photo").src = "data/img/char" + (currentChoice + 1) + ".png";
         document.getElementById("player-panel").style.display = "block";
         if(!isMobile()) controls.unlock();
         document.getElementById("container").style.opacity = '0.5';
@@ -1010,6 +1024,26 @@ document.addEventListener('keydown', (event) => {
 });
 document.addEventListener('keyup', (event) => {
     keys[event.key] = false;
+});
+
+// Event listeners for character selection
+document.getElementById("left-button").addEventListener("click", function () {
+    currentChoice = (currentChoice - 1 + choices.length) % choices.length;
+    document.getElementById("player-photo").src = "data/img/char" + (currentChoice + 1) + ".png";
+    scene.remove(player);
+    player = loadedModels[currentChoice];
+    player.position.set(9, groundLevel, 1);
+    scene.add(player);
+    localStorage.setItem('modelData', currentChoice);
+});
+document.getElementById("right-button").addEventListener("click", function () {
+    currentChoice = (currentChoice + 1) % choices.length;
+    document.getElementById("player-photo").src = "data/img/char" + (currentChoice + 1) + ".png";
+    scene.remove(player);
+    player = loadedModels[currentChoice];
+    player.position.set(9, groundLevel, 1);
+    scene.add(player);
+    localStorage.setItem('modelData', currentChoice);
 });
 
 // Event listeners for upgrade buttons

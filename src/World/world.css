@@ -1,0 +1,231 @@
+#loadingScreen {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    opacity: 1; /* Initially hidden */
+    transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
+}
+
+#container {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.8);
+    opacity: 0;
+    transition: opacity 1s ease-in-out; /* Smooth fade-in and fade-out */
+    touch-action: none;
+}
+
+#loadingBarContainer {
+    width: 80%;
+    height: 30px;
+    background: #444;
+    border-radius: 15px;
+    overflow: hidden;
+    margin-top: 10px;
+}
+
+#loadingBar {
+    width: 0;
+    height: 100%;
+    background: #4caf50;
+    transition: width 0.2s ease-out;
+}
+
+#loadingText {
+    margin-top: 15px;
+}
+
+.message-box {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    background-color: rgba(0, 0, 0, 0.8);
+    color: white;
+    padding: 20px;
+    border-radius: 10px;
+    font-size: 16px;
+    opacity: 0;
+    z-index: 1;
+    pointer-events: none; /* Prevent clicks while hidden */
+    transition: opacity 0.5s ease;
+}
+
+.message-box.show {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.message-text {
+    margin: 0;
+}
+
+#operationPanel {
+    position: fixed;
+    bottom: 10px;
+    right: 10px;
+    width: fit-content;
+    z-index: 10;
+    display: flex;
+    flex-direction: row;
+    gap: 10px;
+}
+
+#player-panel {
+    position: fixed;
+    top: 15%;
+    left: 30%;
+    width: 40%;
+    height: 70%;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    color: white;
+    border-radius: 10px;
+    font-family: Arial, sans-serif;
+    align-content: center;
+    z-index: 2;
+    display: none;
+}
+
+.menu-button {
+    display: block;
+    margin: 5px auto;
+    padding: 5px 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffffff;
+    background: linear-gradient(145deg, #6b4f25, #9b6a2d); /* 暗黄色系立体渐变 */
+    border: none;
+    border-radius: 30px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    width: fit-content;
+}
+
+.menu-button:hover {
+    background: linear-gradient(145deg, #9b6a2d, #6b4f25);
+    box-shadow: 0 4px 15px rgba(245, 146, 35, 0.6); /* 悬停时添加橙色光晕 */
+    transform: translateY(-3px); /* 鼠标悬停效果 */
+}
+
+.menu-button:active {
+    transform: scale(0.98);
+    box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.6); /* 内凹效果 */
+}
+
+#player-select {
+    font-size: 16px;
+    padding: 8px 12px; /* Adds a balanced padding */
+    border: 1px solid #ccc; /* Neutral border color */
+    border-radius: 6px; /* Rounded corners */
+    background-color: #f9f9f9; /* Subtle background color */
+    color: #333; /* Text color */
+    transition: border-color 0.3s, box-shadow 0.3s; /* Smooth transition effects */
+    cursor: pointer;
+}
+
+#player-select:hover {
+    border-color: #007BFF; /* Highlight border on hover */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Adds a glow effect */
+}
+
+#player-select:focus {
+    outline: none;
+    border-color: #007BFF; /* Focus color */
+    box-shadow: 0 0 8px rgba(0, 123, 255, 0.8); /* Enhances focus glow */
+}
+
+#player-select option {
+    font-size: 16px; /* Matches dropdown font size */
+    padding: 4px; /* Adds spacing between options */
+    background-color: #fff; /* Option background */
+    color: #333; /* Text color for options */
+}
+
+#joyStick {
+    position: fixed;
+    bottom: 20px;
+    left: 20px;
+    width: 40vw;
+    height: 40vh;
+    background-color: rgba(0, 0, 0, 0.0);
+    z-index: 1;
+    -webkit-user-select: none; /* For Safari */
+    -webkit-touch-callout: none;
+    touch-action: none;
+}
+
+#player-panel {
+    position: fixed;
+    top: 15%;
+    left: 30%;
+    width: 40%;
+    height: 70%;
+    background-color: rgba(0, 0, 0, 0.7);
+    padding: 20px;
+    color: white;
+    border-radius: 10px;
+    font-family: Arial, sans-serif;
+    z-index: 2;
+    display: none;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.player-details {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.player-stats {
+    flex: 1;
+}
+
+.player-photo-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    flex: 0 0 auto;
+}
+
+#player-photo {
+    width: 100px;
+    height: 100px;
+    object-fit: cover;
+    border-radius: 50%;
+    border: 2px solid white;
+}
+
+#left-button,
+#right-button {
+    background-color: white;
+    color: black;
+    border: none;
+    padding: 5px 10px;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    transition: background-color 0.3s;
+}
+
+#left-button:hover,
+#right-button:hover {
+    background-color: #007BFF;
+    color: white;
+}
