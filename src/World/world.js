@@ -5,6 +5,7 @@ import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {Water} from "three/addons/objects/Water.js";
 import {Sky} from "three/addons/objects/Sky.js";
 import Stats from "three/addons/libs/stats.module.js";
+import {initPlayerData} from '../combat/InitData.js';
 import {Euler} from "three";
 
 // All global variables
@@ -22,9 +23,10 @@ let bgm, autoMusicTrigger = true;
 let selectedPlayerIndex = 0;
 let panelOpen = false;
 
-// Player cubes
+// Player choices
 let choices = ['cube_character', 'cube_character2', 'cube_character3'];
 let currentChoice = 0;
+let infMode = false;
 
 // Maximum and minimum pitch angles in radians
 const maxPitch = THREE.MathUtils.degToRad(150);
@@ -82,7 +84,7 @@ function loadModel(url) {
                 res = model;
             } else {
                 groundLevel = 0.5;
-                if(url.includes('character')){
+                if (url.includes('character')) {
                     res = model.scene.children[0].children[0];
                 } else {
                     res = model.scene.children[0];
@@ -125,7 +127,7 @@ function loadAllAssets() {
     const modelURLs = ['data/models/cube_character.glb', 'data/models/cube_character2.glb', 'data/models/cube_character3.glb',
         'data/models/fence.glb', 'data/models/cube_monster.glb',
         'data/models/gate.glb', "data/models/gate_off.glb"];
-    const dataKeys = ['gameData', 'playerData', 'positionData', 'modelData'];
+    const dataKeys = ['gameData', 'playerData', 'positionData', 'modelData', 'infMode'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
     const modelPromises = modelURLs.map(url => loadModel(url));
@@ -141,6 +143,7 @@ function loadAllAssets() {
             playerData = loadedData[1];
             positionData = loadedData[2];
             if (loadedData[3]) currentChoice = loadedData[3];
+            if (loadedData[4]) infMode = loadedData[4];
 
             console.log('All assets loaded successfully');
             console.log('Loaded textures:', loadedTextures);
@@ -174,8 +177,8 @@ function resolveGameData() {
             state: "world",
         };
         showMessage("Welcome to level " + gameData.level + "!");
-        // 1: battle 2: cube game
-        gameMode = Math.floor(Math.random() * 3) + 1;
+        // 1: battle 2: cube game 3: clock game
+        gameMode = 1;
         gameData.gameMode = gameMode;
         localStorage.setItem('gameData', JSON.stringify(gameData));
     } else {
@@ -184,12 +187,12 @@ function resolveGameData() {
                 window.location.href = 'combat.html';
             } else if (gameData.gameMode === 2) {
                 window.location.href = 'cube.html';
-            } else if (gameData.gameMode === 3){
+            } else if (gameData.gameMode === 3) {
                 window.location.href = 'clock.html';
             } else {
                 showMessage("Invalid game mode!", 2);
             }
-        } else if (gameData.state === "path"){
+        } else if (gameData.state === "path") {
             window.location.href = 'path.html';
         } else if (gameData.state === "win") {
             setTimeout(() => {
@@ -201,51 +204,13 @@ function resolveGameData() {
             }, 1000);
         }
         if (!gameData.gameMode) {
-            gameMode = Math.floor(Math.random() * 3) + 1;
-            gameData.gameMode = gameMode;
+            gameData.gameMode = (gameData.level - 1) % 3 + 1;
             localStorage.setItem('gameData', JSON.stringify(gameData));
         }
         gameMode = gameData.gameMode;
     }
     if (playerData === null) {
-        playerData = [
-            {
-                id: 1,
-                name: "Player 1",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 230
-            },
-            {
-                id: 2,
-                name: "Player 2",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 190
-            },
-            {
-                id: 3,
-                name: "Player 3",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 215
-            },
-        ]
+        playerData = initPlayerData;
         localStorage.setItem('playerData', JSON.stringify(playerData));
     }
 
@@ -259,7 +224,7 @@ function init() {
     // Create camera
     camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     camera.position.set(10, 0, 0);
-    if(positionData){
+    if (positionData) {
         camera.position.set(positionData.camera[0], positionData.camera[1], positionData.camera[2]);
         camera.rotation.set(positionData.cameraRot[0], positionData.cameraRot[1], positionData.cameraRot[2]);
         camera.rotation.order = positionData.cameraRot[3];
@@ -288,7 +253,7 @@ function init() {
     controls.screenSpacePanning = false;
 
     document.getElementById("operationPanel").style.display = "flex";
-    if(isMobile()) {
+    if (isMobile()) {
         joystick = nipplejs.create({
             zone: document.getElementById("joyStick"),
             color: 'white',
@@ -304,10 +269,11 @@ function init() {
             keys['d'] = (angle >= 0 && angle < 60) || (angle > 300 && angle <= 360);
         })
         joystick.on('end', () => {
-            joystickActive= false;
+            joystickActive = false;
             keys['w'] = keys['s'] = keys['a'] = keys['d'] = false;
         });
     } else {
+        document.getElementById("panelButton").innerText = "Panel (Press E)"
         document.getElementById("jumpButton").style.display = "none";
         document.getElementById("attackButton").style.display = "none";
     }
@@ -427,7 +393,7 @@ function placeLayout() {
     // Player
     player = loadedModels[currentChoice];
     player.position.set(9, groundLevel, 1);
-    if(positionData){
+    if (positionData) {
         player.position.set(positionData.player[0], positionData.player[1], positionData.player[2]);
     }
     player.castShadow = true;
@@ -488,6 +454,7 @@ function updatePlayerPanel(index) {
     document.getElementById("player-crit").innerText = `Crit Rate: ${player.crit_rate * 100}%`;
     document.getElementById("player-speed").innerText = `Speed: ${player.speed}`;
     document.getElementById("money").innerText = `Money: $${gameData.score}`;
+    document.getElementById("restore-hp").innerText = `Restore HP (Cost: $${Math.ceil(player.maxHp - player.hp) / 10})`;
 }
 
 function addUpdatePanel() {
@@ -661,14 +628,14 @@ function handleMovement() {
 function handleTarget() {
     if (gameData.state === "win") {
         target.visible = false;
-        if(player.position.distanceTo(gate.position) <= 4){
+        if (player.position.distanceTo(gate.position) <= 4) {
             showStageHint();
         }
         return;
     }
 
     let distance = player.position.distanceTo(building.position);
-    if (distance < 4){
+    if (distance < 4) {
         showGameHint();
     }
 
@@ -838,7 +805,7 @@ function tryAttack() {
     // Get the distance from player to building
     const distance = player.position.distanceTo(building.position);
     if (distance <= 4) {
-        if(!isMobile()) controls.unlock();
+        if (!isMobile()) controls.unlock();
         if (gameMode === 1) {
             showMessage('You are entering combat!');
         } else if (gameMode === 2) {
@@ -872,12 +839,8 @@ function tryAttack() {
             if (gameMode === 1)
                 window.location.href = 'combat.html';
             else if (gameMode === 2) {
-                updateData.param = Math.floor(Math.random() * 5) + 1;
-                localStorage.setItem('gameData', JSON.stringify(updateData));
                 window.location.href = 'cube.html';
             } else if (gameMode === 3) {
-                updateData.param = Math.floor(Math.random() * 5) + 1;
-                localStorage.setItem('gameData', JSON.stringify(updateData));
                 window.location.href = 'clock.html';
             }
         }, 1000);
@@ -886,19 +849,35 @@ function tryAttack() {
     }
 }
 
-function handlePanel(){
+function handlePanel() {
     if (panelOpen) {
         document.getElementById("player-panel").style.display = "none";
-        if(!isMobile()) controls.lock();
+        if (!isMobile()) controls.lock();
         document.getElementById("container").style.opacity = '1';
         panelOpen = false;
         document.getElementById("panelButton").blur();
     } else {
         document.getElementById("player-photo").src = "data/img/char" + (currentChoice + 1) + ".png";
         document.getElementById("player-panel").style.display = "block";
-        if(!isMobile()) controls.unlock();
+        if (!isMobile()) controls.unlock();
         document.getElementById("container").style.opacity = '0.5';
         panelOpen = true;
+    }
+}
+
+function handleNextStage() {
+    pauseAudio();
+    showMessage("Entering the next stage!");
+
+    if (!infMode) {
+        gameData.state = "path";
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        window.location.href = 'path.html';
+    } else {
+        localStorage.removeItem('positionData');
+        gameData.state = "world";
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        window.location.href = 'world.html';
     }
 }
 
@@ -953,65 +932,19 @@ document.addEventListener('keydown', (event) => {
             state: "world",
         }
         localStorage.setItem('gameData', JSON.stringify(gameData));
-        const playerData = [
-            {
-                id: 1,
-                name: "Player 1",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 230
-            },
-            {
-                id: 2,
-                name: "Player 2",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 190
-            },
-            {
-                id: 3,
-                name: "Player 3",
-                lv: 90,
-                maxHp: 10000,
-                hp: 10000,
-                atk: 100,
-                def: 100,
-                crit_rate: 0.6,
-                crit_dmg: 2,
-                speed: 215
-            },
-        ]
-        localStorage.setItem('playerData', JSON.stringify(playerData));
-        console.log("Player data stored in localStorage: ", playerData);
+        localStorage.setItem('playerData', JSON.stringify(initPlayerData));
+        console.log("Player data stored in localStorage: ", initPlayerData);
     }
     if (keys['f'] && gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
-            pauseAudio();
-            showMessage("Entering the next stage!");
-
-            gameData.level += 1;
-            gameData.state = "path";
-            localStorage.setItem('gameData', JSON.stringify(gameData));
-            setTimeout(() => {
-                window.location.href = 'path.html';
-            }, 1000);
+            handleNextStage();
         } else {
             showMessage("You are not at the gate!");
         }
     }
     if (keys['t']) {
-        const _euler = new Euler( 0, 0, 0, 'YXZ' );
-        _euler.setFromQuaternion( camera.quaternion );
+        const _euler = new Euler(0, 0, 0, 'YXZ');
+        _euler.setFromQuaternion(camera.quaternion);
         console.log(_euler);
     }
     if (keys['e']) {
@@ -1050,7 +983,7 @@ document.getElementById("right-button").addEventListener("click", function () {
 document.getElementById("upgrade-atk").addEventListener("click", function () {
     if (gameData.score >= 10) {
         playerData[selectedPlayerIndex].atk += 10;
-        gameData.score -= 10;
+        gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
@@ -1062,7 +995,7 @@ document.getElementById("upgrade-atk").addEventListener("click", function () {
 document.getElementById("upgrade-def").addEventListener("click", function () {
     if (gameData.score >= 10) {
         playerData[selectedPlayerIndex].def += 20;
-        gameData.score -= 10;
+        gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
@@ -1075,12 +1008,24 @@ document.getElementById("upgrade-hp").addEventListener("click", function () {
     if (gameData.score >= 20) {
         let percent = playerData[selectedPlayerIndex].hp / playerData[selectedPlayerIndex].maxHp;
         playerData[selectedPlayerIndex].maxHp += 100;
-        playerData[selectedPlayerIndex].hp = playerData[selectedPlayerIndex].maxHp * percent;
-        gameData.score -= 20;
+        playerData[selectedPlayerIndex].hp = Math.floor(playerData[selectedPlayerIndex].maxHp * percent);
+        gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
         showMessage("HP upgraded 100! Cost 20.")
+    } else {
+        showMessage("Not enough money!", 2);
+    }
+});
+document.getElementById("restore-hp").addEventListener("click", function () {
+    if (gameData.score >= Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10)) {
+        playerData[selectedPlayerIndex].hp = playerData[selectedPlayerIndex].maxHp;
+        gameData.score -= Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10);
+        updatePlayerPanel(selectedPlayerIndex);
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        showMessage("HP restored! Cost " + Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10) + ".");
     } else {
         showMessage("Not enough money!", 2);
     }
@@ -1091,14 +1036,15 @@ window.addEventListener('wheel', (event) => {
     zoom = THREE.MathUtils.clamp(zoom + event.deltaY * 0.001, 0.5, 2);
 }, false);
 window.addEventListener('mousedown', onMouseDown, false);
+
 function onMouseDown() {
-    if(autoMusicTrigger){
+    if (autoMusicTrigger) {
         showMessage("Music is playing!");
         bgm.play();
         autoMusicTrigger = false;
     }
     if (panelOpen || isMobile()) return;
-    if(!controls.isLocked) controls.lock();
+    if (!controls.isLocked) controls.lock();
     if (gameData.state === "win") return;
 
     tryAttack();
@@ -1112,19 +1058,11 @@ document.getElementById("jumpButton").addEventListener("click", function () {
         velocity = jumpHeight;  // Initial jump force
     }
 }, false);
-document.getElementById("attackButton").addEventListener("click", function (){
-    if(panelOpen) return;
-    if(gameData.state === "win"){
+document.getElementById("attackButton").addEventListener("click", function () {
+    if (panelOpen) return;
+    if (gameData.state === "win") {
         if (player.position.distanceTo(gate.position) <= 4) {
-            pauseAudio();
-            showMessage("Entering the next stage!");
-
-            gameData.level += 1;
-            gameData.state = "path";
-            localStorage.setItem('gameData', JSON.stringify(gameData));
-            setTimeout(() => {
-                window.location.href = 'path.html';
-            }, 1000);
+            handleNextStage();
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1139,7 +1077,7 @@ document.addEventListener('touchmove', onTouchMove, false);
 document.addEventListener('touchend', onTouchEnd, false);
 
 function onTouchStart(event) {
-    if(autoMusicTrigger){
+    if (autoMusicTrigger) {
         showMessage("Music is playing!");
         bgm.play();
         autoMusicTrigger = false;
@@ -1163,22 +1101,23 @@ function onTouchStart(event) {
         initialPinchDistance = Math.sqrt(dx * dx + dy * dy);
     }
 }
+
 function onTouchMove(event) {
-    if(panelOpen) return;
+    if (panelOpen) return;
     if ((event.touches.length === 1 && !joystickActive) ||
         (event.touches.length === 2 && joystickActive)) {
         touchDeltaX = event.touches[draggingTouch].pageX - touchStartX;
         touchDeltaY = event.touches[draggingTouch].pageY - touchStartY;
 
-        let _euler = new Euler( 0, 0, 0, 'YXZ' );
-        _euler.setFromQuaternion( camera.quaternion );
+        let _euler = new Euler(0, 0, 0, 'YXZ');
+        _euler.setFromQuaternion(camera.quaternion);
 
         _euler.y -= touchDeltaX * 0.006;
         _euler.x -= touchDeltaY * 0.006;
 
-        _euler.x = Math.max( Math.PI / 2 - maxPitch, Math.min(Math.PI / 2 - minPitch, _euler.x ) );
+        _euler.x = Math.max(Math.PI / 2 - maxPitch, Math.min(Math.PI / 2 - minPitch, _euler.x));
 
-        camera.quaternion.setFromEuler( _euler );
+        camera.quaternion.setFromEuler(_euler);
 
         touchStartX = event.touches[draggingTouch].pageX;
         touchStartY = event.touches[draggingTouch].pageY;
@@ -1197,6 +1136,7 @@ function onTouchMove(event) {
         initialPinchDistance = currentPinchDistance;
     }
 }
+
 function onTouchEnd(event) {
     if (event.touches.length < 2) {
         initialPinchDistance = null;

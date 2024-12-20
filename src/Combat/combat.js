@@ -3,6 +3,7 @@ import {Skill, Player, Enemy, Buff} from './Character.js';
 import {MMDLoader} from "three/addons/loaders/MMDLoader.js";
 import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {Sky} from "three/addons/objects/Sky.js";
+import {initPlayerData} from "./InitData.js";
 
 let scene, renderer, sun, sky;
 let loadedTextures = [], loadedSounds = [], loadedModels = [];
@@ -150,7 +151,19 @@ function loadAllAssets() {
     const soundURLs = [
         'data/sounds/Buff.mp3',
         'data/sounds/Debuff.wav',
-        'data/sounds/Attack.wav'
+        'data/sounds/Attack.wav',
+        'data/sounds/Char1-die.ogg',
+        'data/sounds/Char1-hit.ogg',
+        'data/sounds/Char1-skl.ogg',
+        'data/sounds/Char1-hyp.ogg',
+        'data/sounds/Char2-die.ogg',
+        'data/sounds/Char2-hit.ogg',
+        'data/sounds/Char2-skl.ogg',
+        'data/sounds/Char2-hyp.ogg',
+        'data/sounds/Char3-die.ogg',
+        'data/sounds/Char3-hit.ogg',
+        'data/sounds/Char3-skl.ogg',
+        'data/sounds/Char3-hyp.ogg'
     ];
 
     soundURLs.forEach(url => {
@@ -642,7 +655,8 @@ function toggleButtons(enabled = true) {
         setTimeout(() => {
             document.getElementById('attackButton').disabled = false;
             document.getElementById('skillButton').disabled = !(skillDots >= 1);
-            if(activePlayer && allPlayers.includes(activePlayer))
+            // console.log(energy[activePlayer.id])
+            if(activePlayer)
                 document.getElementById('hyperSkillButton').disabled = !(energy[activePlayer.id] === 100);
         }, 500);
     } else {
@@ -749,6 +763,10 @@ function filterActions() {
     // Remove dead players
     allPlayers.forEach(player => {
         if (!player.isAlive) {
+            loadedSounds.forEach(sound => {
+                if (sound.name.includes("Char" + player.id + "-die"))
+                    sound.play();
+            });
             actionQ.elements.forEach(action => {
                 if (action.PlayerInfo.charType === 'player' &&
                     action.PlayerInfo.playerId === player.id) {
@@ -825,26 +843,24 @@ function startRound() {
         enemy.crit_dmg = init_enemy.crit_dmg;
         enemy.speed = init_enemy.speed;
         let info = new PlayerInfo(enemy.id, enemy.speed, "enemy");
-        actionQ.enqueue(info.dist / enemy.speed, info);
-    });
-
-    if(round >= 4){
-        showMessage("The enemies are entering a frenzy!", 1500, 2);
-        allEnemies.forEach(enemy => {
+        if(round >= 4){
             enemy.atk += 30 * (round - 3);
             enemy.def += 100 * (round - 3);
             enemy.speed += 70 * (round - 3);
-        });
-        allEnemies.forEach(enemy => {
             animateBoostEffect(enemy, true);
-        });
-    }
+        }
+        actionQ.enqueue(info.dist / enemy.speed, info);
+    });
+
+    if(round >= 4)
+        showMessage("The enemies are entering a frenzy!", 1500, 2);
 
     // Apply all the buffs
     applyBuffs();
 
     // Update status panel
     updateStatusPanel();
+    toggleButtons(true);
 
     // Calculate the first act in queue
     const moveVal = actionQ.elements[0].index;
@@ -1081,51 +1097,13 @@ function handleLose() {
     const gameData = {
         level: 1,
         score: 0,
-        state: "path",
+        state: "world",
     }
     localStorage.setItem('gameData', JSON.stringify(gameData));
-    const playerData = [
-        {
-            id: 1,
-            name: "Player 1",
-            lv: 90,
-            maxHp: 10000,
-            hp: 10000,
-            atk: 100,
-            def: 100,
-            crit_rate: 0.6,
-            crit_dmg: 2,
-            speed: 230
-        },
-        {
-            id: 2,
-            name: "Player 2",
-            lv: 90,
-            maxHp: 10000,
-            hp: 10000,
-            atk: 100,
-            def: 100,
-            crit_rate: 0.6,
-            crit_dmg: 2,
-            speed: 190
-        },
-        {
-            id: 3,
-            name: "Player 3",
-            lv: 90,
-            maxHp: 10000,
-            hp: 10000,
-            atk: 100,
-            def: 100,
-            crit_rate: 0.6,
-            crit_dmg: 2,
-            speed: 215
-        },
-    ]
-    localStorage.setItem('playerData', JSON.stringify(playerData));
-    console.log("Player data stored in localStorage: ", playerData);
+    localStorage.setItem('playerData', JSON.stringify(initPlayerData));
+    console.log("Player data stored in localStorage: ", initPlayerData);
     setTimeout(() => {
-        window.location.href = "path.html";
+        window.location.href = "world.html";
     }, 1500);
 }
 
@@ -1168,8 +1146,7 @@ function handleWin() {
 
 // Logic after an action is performed
 function afterAction(proceed = true) {
-    // Enable the buttons
-    toggleButtons(true);
+    // Update the status panel
     updateStatusPanel();
 
     filterActions();
@@ -1231,10 +1208,10 @@ function nextAction() {
 
         // Auto select the target assuming an attack
         updateStatusPanel();
+        toggleButtons(true);
         attackMethod = 1;
         document.getElementById('attackButton').className = 'active-button';
         stopTargetSelector();
-        toggleButtons(true);
         targetSelector('enemy');
     } else {
         toggleButtons(false);
@@ -1274,11 +1251,15 @@ function enemySkill1(attacker) {
     });
 
     setTimeout(() => {
-        speedUp(currentTarget, -70);
+        actionForward(currentTarget, -0.2);
+        loadedSounds.forEach(sound => {
+            if (sound.name.includes(currentTarget.id + "-hit"))
+                sound.play();
+        });
         const debuff = new Buff("atk_debuff", "incAtk", -50, 1, [currentTarget]);
         debuff.applyEffect();
         animateBoostEffect(currentTarget, false);
-        showMessage(currentTarget.name + "'s speed and attack decreased!", 1500, 2);
+        showMessage(currentTarget.name + "'s attack decreased, action delayed!", 1500, 2);
     }, 600);
 }
 
@@ -1290,6 +1271,10 @@ function enemyHyperSkill(attacker) {
     setTimeout(() => {
         animateHyperAttack(attacker);
         setTimeout(() => {
+            loadedSounds.forEach(sound => {
+                if (sound.name.includes("2-hit"))
+                    sound.play();
+            });
             showMessage("All players have been attacked and speed decreased!", 1500, 2);
             animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
             setTimeout(() =>{
@@ -1364,6 +1349,10 @@ function enemyHyperSkill(attacker) {
 function skill1(attacker) {
     currentTarget.onDamage(attacker, 10);
     animateAttack(attacker, currentTarget);
+    loadedSounds.forEach(sound => {
+        if (sound.name.includes("Char1-skl"))
+            sound.play();
+    });
 
     setTimeout(() => {
         speedUp(currentTarget, -70);
@@ -1380,6 +1369,10 @@ function skill1(attacker) {
 function skill2(attacker) {
     currentTarget.onDamage(attacker, 30);
     animateAttack(attacker, currentTarget);
+    loadedSounds.forEach(sound => {
+        if (sound.name.includes("Char2-skl"))
+            sound.play();
+    });
 
     setTimeout(() => {
         afterAction();
@@ -1388,12 +1381,19 @@ function skill2(attacker) {
 
 function skill3(attacker) {
     currentTarget.onHeal(1500 + 0.1 * currentTarget.maxHp);
-    allPlayers.forEach(player => {
-        player.onHeal(1500);
-    });
+    setTimeout(() =>{
+        allPlayers.forEach(player => {
+            player.onHeal(1500);
+        });
+    }, 300);
     const buff = new Buff("atk_buff", "incAtk", 50, 1, [currentTarget]);
     buff.applyEffect();
     showMessage("All players healed and " + currentTarget.name + "'s attack has been increased!", 1500);
+    loadedSounds.forEach(sound => {
+        if (sound.name.includes("Char3-skl"))
+            sound.play();
+    });
+
     if(currentTarget.id !== attacker.id) {
         let flag = false;
         actionQ.elements.forEach(action => {
@@ -1417,14 +1417,20 @@ function skill3(attacker) {
 function hyperSkill1(attacker) {
     stopTargetSelector();
     toggleButtons(false);
+    loadedSounds.forEach(sound => {
+        if (sound.name.includes("Char1-hyp"))
+            sound.play();
+    });
 
     animateCameraMove(new THREE.Vector3(0, 5, 12), new THREE.Vector3(0, 0, 0), 75, 1.5);
     setTimeout(() => {
         animateHyperAttack(attacker);
         setTimeout(() => {
             showMessage("All enemies have been attacked and speed decreased!", 1500);
-            animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 1.5);
             setTimeout(() =>{
+                const playerPos = activePlayer.cube.position.clone();
+                const cameraPos = playerPos.add(new THREE.Vector3((activePlayer.id - 2)*1.5, 1, 3));
+                animateCameraMove(cameraPos, new THREE.Vector3(0, 0, 0), 75, 1);
                 toggleButtons(true);
                 targetSelector('enemy');
             }, 1500);
@@ -1459,8 +1465,8 @@ function hyperSkill1(attacker) {
                 onComplete: () => { // Smash down
                     // Check for collisions with enemies
                     allEnemies.forEach(enemy => {
-                        enemy.onLoseHp(1000);
-                        speedUp(enemy, -20);
+                        enemy.onLoseHp(10 * attacker.atk);
+                        speedUp(enemy, -50);
                         animateBoostEffect(enemy, false);
                     });
                     loadedSounds.forEach(sound => {
@@ -1494,6 +1500,8 @@ function hyperSkill2(attacker) {
     const goalPos = allEnemies[Math.floor(allEnemies.length / 2)].cube.position.clone();
     animateCameraMove(attacker.cube.position.clone().add(new THREE.Vector3(0, 0, -0.5)), goalPos, 100, 1.5);
     toggleButtons(false);
+    stopTargetSelector();
+    toggleButtons(false);
 
     setTimeout(() => {
         targetSelector('enemy');
@@ -1523,7 +1531,7 @@ function hyperSkill2(attacker) {
             ease: 'power1.out',
             onComplete: () => {
                 // Check for collisions with enemies
-                currentTarget.onDamage(attacker, (ammo === 0) ? 30 : 15);
+                currentTarget.onDamage(attacker, 12 * (3 - ammo));
                 loadedSounds.forEach(sound => {
                     if (sound.name.includes("Attack.wav"))
                         sound.play();
@@ -1533,6 +1541,11 @@ function hyperSkill2(attacker) {
                 toggleButtons(false);
                 scene.remove(ammoCube);
                 if (ammo === 0) {
+                    loadedSounds.forEach(sound => {
+                        if (sound.name.includes("Char2-hyp"))
+                            sound.play();
+                    });
+
                     stopTargetSelector();
                     document.getElementById('ActButton').style.display = 'none';
                     document.getElementById('ActButton').removeEventListener('click', onClick);
@@ -1557,6 +1570,10 @@ function hyperSkill3() {
     camera.position.set(2, 1, -1);
     camera.lookAt(1.5, 1, 0);
     animateCameraMove(new THREE.Vector3(-2, 1, -2), new THREE.Vector3(-1, 1, 0), 100, 2.5);
+    loadedSounds.forEach(sound => {
+        if (sound.name.includes("Char3-hyp"))
+            sound.play();
+    });
 
     setTimeout(() => {
         allPlayers.forEach(player => {
@@ -1809,9 +1826,9 @@ const tutorialData = [
     {
         image: "data/tutorial/combat/actseq.png",
         text: "The skill information: \n" +
-            "Player 1: Skill: Deal damage and debuff the enemy. Hyper Skill: Deal damage and speed down all enemies.\n" +
-            "Player 2: Skill: Deal great damage to the enemy. Hyper Skill: Shoot 3 ammos to target enemies.\n" +
-            "Player 3: Skill: Heal target and let it act immediately. Hyper Skill: Speed up all players and buff their attack.\n"
+            "Player 1: Skill: Deal damage, decrease speed of enemy by 70. Hyper Skill: Deal damage and speed down all enemies by 50.\n" +
+            "Player 2: Skill: Deal great damage to the enemy. Hyper Skill: Shoot 3 ammos to target enemies, power increasing each time.\n" +
+            "Player 3: Skill: Heal target and let it act immediately. Then heal all players. Hyper Skill: Heal and speed up all players and buff their attack.\n"
     },
     {
         image: "data/tutorial/combat/actseq.png",

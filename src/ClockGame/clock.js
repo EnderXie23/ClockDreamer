@@ -18,6 +18,7 @@ const NO_REF_LAYER = 1; // No reflection layer
 let lights = [], model;
 let gameData, loadedModels;
 let goalInd = 0;
+let infMode = false;
 let data = {
     trail: [
         [-1, 0, 3], [-1, 0, 2], [-1, 0, 1], [-1, 0, 0],
@@ -226,7 +227,7 @@ function loadAllAssets() {
         bgm.setVolume(0.15);
     });
 
-    const dataKeys = ['gameData'];
+    const dataKeys = ['gameData', 'infMode'];
     const modelURLs = ['data/objects/character/plant1.glb'];
 
     const gameDataPromises = dataKeys.map(key => loadGameData(key));
@@ -234,13 +235,14 @@ function loadAllAssets() {
     Promise.all([...gameDataPromises, ...modelPromises])
         .then((results) => {
             gameData = results.slice(0, dataKeys.length)[0];
+            if (results.slice(0, dataKeys.length)[1]) infMode = results.slice(0, dataKeys.length)[1];
             loadedModels = results.slice(dataKeys.length, dataKeys.length + modelURLs.length);
 
             console.log("Loaded game data: ", gameData);
             console.log("Loaded models: ", loadedModels);
             resolveGameData();
 
-            const path = "data/clock/clock2.json";
+            const path = "data/clock/clock3.json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             Promise.all([...dataPromises])
@@ -268,14 +270,17 @@ function handleWin() {
     let updateGameData = {
         level: gameData.level + 1,
         score: gameData.score + 500,
-        state: "path",
+        state: (infMode? "win" : "path"),
     };
 
     localStorage.setItem('gameData', JSON.stringify(updateGameData));
     console.log("Game data updated: " + JSON.stringify(updateGameData));
 
     setTimeout(() => {
-        window.location.href = "path.html"; // 跳转到 Path 场景
+        if(infMode)
+            window.location.href = "world.html"; // 跳转到 Path 场景
+        else
+            window.location.href = "path.html"; // 跳转到 Path 场景
     }, 1000);
 }
 
@@ -295,6 +300,8 @@ function moveToGoal(){
                 goalInd++;
                 if(goalInd === data.destinations.length){
                     handleWin();
+                } else {
+                    lights[goalInd].show = 1;
                 }
             } else {
                 moveToGoal();
@@ -634,8 +641,9 @@ function onMouseDown(event) {
             raycaster.ray.intersectPlane(Plane, originalIntersection);
         } else if (spinObj.includes(selectedObject)) {
             // Check if the red block can rotate
-            let rotLim = rotationDirection === 1 ? selectedObject.state <= selectedObject.clip[0]
-                : selectedObject.state >= selectedObject.clip[1];
+            console.log("RotDir: ", rotationDirection);
+            let rotLim = (rotationDirection === 1 ? selectedObject.state <= selectedObject.clip[1]
+                : selectedObject.state >= selectedObject.clip[0]);
             // Perform rotation on the red block
             if (!rotLim)
                 rotationDirection *= -1;

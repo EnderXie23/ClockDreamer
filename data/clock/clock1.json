@@ -46,7 +46,7 @@
     {
       "position": [2, 1.5, -11],
       "color": "rgb(255, 246, 178)",
-      "show": 1,
+      "show": 0,
       "size": 0.1,
       "amplitude": 0.1,
       "frequency": 10

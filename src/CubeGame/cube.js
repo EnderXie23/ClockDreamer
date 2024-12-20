@@ -94,7 +94,7 @@ function loadAllAssets() {
             console.log("Loaded game data: ", gameData);
             resolveGameData();
 
-            const path = "data/cubes/cube" + gameData.param + ".json";
+            const path = "data/cubes/cube" + Math.ceil(gameData.level / 3) + ".json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             Promise.all([...dataPromises])
@@ -118,9 +118,6 @@ function resolveGameData() {
             // window.location.href = "path.html";
         }, 1000);
         // return new Error("Wrong game state");
-    }
-    if (!gameData.param) {
-        gameData.param = 3;
     }
 }
 
@@ -410,7 +407,7 @@ function onMouseUp() {
 function handleWin() {
     win = true;
     let updateGameData = {
-        level: gameData.level,
+        level: gameData.level + 1,
         score: gameData.score + 500,
         state: "win",
     }

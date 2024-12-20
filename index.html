@@ -113,7 +113,7 @@
     <h1 id="game-title">Clock Dreamer</h1>
     <button class="menu-button" id="start-button">Start</button>
     <button class="menu-button" id="manual-button">Manual</button>
-    <button class="menu-button" id="settings-button">Settings</button>
+    <button class="menu-button" id="inf-mode">Infinite Mode</button>
     <div class="separator"></div>
     <p>Explore time and space...</p>
 </div>
@@ -145,18 +145,20 @@
         }
     });
 
-    // 为 Start 按钮添加跳转功能
+
     document.getElementById('start-button').addEventListener('click', function() {
-        window.location.href = 'bigworld.html'; // 跳转到 start.html
+        localStorage.clear();
+        window.location.href = 'bigworld.html';
     });
 
-    // 你也可以为其他按钮（例如 Manual 和 Settings）设置不同的跳转页面：
     document.getElementById('manual-button').addEventListener('click', function() {
-        alert('Manual is not available yet!'); // 示例：弹出提示信息
+        alert('Manual is not available yet!');
     });
 
-    document.getElementById('settings-button').addEventListener('click', function() {
-        alert('Settings are under development!'); // 示例：弹出提示信息
+    document.getElementById('inf-mode').addEventListener('click', function() {
+        localStorage.clear();
+        localStorage.setItem('infMode', "true");
+        window.location.href = 'world.html';
     });
 </script>
 </body>
