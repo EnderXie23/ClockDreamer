@@ -5,7 +5,7 @@ import {GLTFLoader} from "three/addons/loaders/GLTFLoader.js";
 import {Water} from "three/addons/objects/Water.js";
 import {Sky} from "three/addons/objects/Sky.js";
 import Stats from "three/addons/libs/stats.module.js";
-import {initPlayerData} from '../combat/InitData.js';
+import {initPlayerData} from '../Combat/InitData.js';
 import {Euler} from "three";
 
 // All global variables
