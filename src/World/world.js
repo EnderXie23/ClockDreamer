@@ -169,13 +169,18 @@ function loadAllAssets() {
 
 function resolveGameData() {
     // Check if game data exists
-    if (gameData === null) {
+    if (gameData === null || (gameData && gameData.state !== "world")) {
+        console.log("No game data found in localStorage.");
+        showMessage("Wrong game state!", 2);
+        setTimeout(()=>{
+            window.location.href = 'index.html';
+        }, 2000);
+
         gameData = {
             level: 1,
             score: 0,
             state: "world",
         };
-        showMessage("Welcome to level " + gameData.level + "!");
         // 1: battle 2: cube game 3: clock game
         gameData.gameMode = gameMode = 1;
         localStorage.setItem('gameData', JSON.stringify(gameData));

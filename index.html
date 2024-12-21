@@ -164,6 +164,12 @@
         localStorage.setItem('infMode', "true");
         localStorage.setItem('cubeLevels', JSON.stringify(cubeLevels));
         localStorage.setItem('clockLevels', JSON.stringify(clockLevels));
+        let gameData = {
+            level: 1,
+            score: 0,
+            state: "world",
+        };
+        localStorage.setItem('gameData', JSON.stringify(gameData));
         window.location.href = 'world.html';
     });
 </script>

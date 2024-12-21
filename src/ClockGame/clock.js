@@ -1,7 +1,6 @@
 import * as THREE from 'three';
 import {Reflector} from "three/addons/objects/Reflector.js";
 import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
-import {MMDLoader} from "three/addons/loaders/MMDLoader";
 
 // Basic three.js setup
 let renderer, scene, camera, light, texture;
@@ -182,10 +181,7 @@ function loadFromFile(path) {
 function loadModel(url) {
     return new Promise((resolve, reject) => {
         let loader, res;
-        if (url.includes('.pmx'))
-            loader = new MMDLoader();
-        else
-            loader = new GLTFLoader();
+        loader = new GLTFLoader();
         loader.load(url, (model) => {
             if (url.includes('.pmx')) {
                 model.scale.setScalar(0.1);
