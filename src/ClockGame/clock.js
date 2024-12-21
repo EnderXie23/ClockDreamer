@@ -255,7 +255,8 @@ function loadAllAssets() {
             console.log("Loaded models: ", loadedModels);
             resolveGameData();
 
-            const path = "data/clock/clock3.json";
+            // const path = "data/clock/clock" + Math.ceil(gameData.level / 3) +".json";
+            const path = "data/clock/clock5.json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             Promise.all([...dataPromises])

@@ -178,8 +178,7 @@ function resolveGameData() {
         };
         showMessage("Welcome to level " + gameData.level + "!");
         // 1: battle 2: cube game 3: clock game
-        gameMode = 1;
-        gameData.gameMode = gameMode;
+        gameData.gameMode = gameMode = 1;
         localStorage.setItem('gameData', JSON.stringify(gameData));
     } else {
         if (gameData.state === "in game") {
@@ -204,7 +203,11 @@ function resolveGameData() {
             }, 1000);
         }
         if (!gameData.gameMode) {
-            gameData.gameMode = (gameData.level - 1) % 3 + 1;
+            if(gameData.level <= 15) {
+                gameData.gameMode = (gameData.level - 1) % 3 + 1;
+            } else {
+                gameData.gameMode = 1;
+            }
             localStorage.setItem('gameData', JSON.stringify(gameData));
         }
         gameMode = gameData.gameMode;
