@@ -88,6 +88,7 @@ let data = {
         ]
     }
 }
+let clockLevels = [], levelInd;
 
 // Global variables for animation
 let animationInProgress = false;
@@ -217,7 +218,13 @@ function loadGameData(key) {
 }
 
 function resolveGameData() {
-
+    if (clockLevels.length === 0 || gameData.state !== "in game" || gameData.gameMode !== 3) {
+        showMessage("Wrong game state.", 1500, 2);
+        setTimeout(() => {
+            // window.location.href = "world.html";
+        }, 1000);
+        // return new Error("Wrong game state");
+    }
 }
 
 function loadAllAssets() {
@@ -240,7 +247,7 @@ function loadAllAssets() {
         roughnessMap: roughnessMap, // Roughness
     });
 
-    const dataKeys = ['gameData', 'infMode'];
+    const dataKeys = ['gameData', 'infMode', 'clockLevels'];
     const modelURLs = ['data/objects/character/plant1.glb'];
 
     const gameDataPromises = dataKeys.map(key => loadGameData(key));
@@ -249,14 +256,18 @@ function loadAllAssets() {
         .then((results) => {
             gameData = results.slice(0, dataKeys.length)[0];
             if (results.slice(0, dataKeys.length)[1]) infMode = results.slice(0, dataKeys.length)[1];
+            clockLevels = results.slice(0, dataKeys.length)[2];
             loadedModels = results.slice(dataKeys.length, dataKeys.length + modelURLs.length);
 
             console.log("Loaded game data: ", gameData);
+            console.log("Infinite mode: ", infMode);
+            console.log("Loaded clock levels: ", clockLevels);
             console.log("Loaded models: ", loadedModels);
             resolveGameData();
 
-            // const path = "data/clock/clock" + Math.ceil(gameData.level / 3) +".json";
-            const path = "data/clock/clock5.json";
+            // Choose a random level from the available levels
+            levelInd = Math.floor(Math.random() * clockLevels.length);
+            const path = "data/clock/clock" + clockLevels[levelInd] +".json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             Promise.all([...dataPromises])
@@ -286,9 +297,12 @@ function handleWin() {
         score: gameData.score + 500,
         state: (infMode? "win" : "path"),
     };
-
     localStorage.setItem('gameData', JSON.stringify(updateGameData));
     console.log("Game data updated: " + JSON.stringify(updateGameData));
+    // Remove levelInd from cubeLevels
+    clockLevels.splice(levelInd, 1);
+    localStorage.setItem('clockLevels', JSON.stringify(clockLevels));
+    console.log("Clock levels update:" + JSON.stringify(clockLevels));
 
     setTimeout(() => {
         if(infMode)

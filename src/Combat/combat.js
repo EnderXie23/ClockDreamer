@@ -136,7 +136,7 @@ function loadGameData(key) {
         if (gameData) {
             resolve(gameData);
         } else {
-            console.error('No data: ' + key + ' found in localStorage.');
+            console.warn('No data: ' + key + ' found in localStorage.');
             resolve(null);
         }
     });
@@ -225,7 +225,7 @@ function resolveGameData() {
     const level = gameData.difficulty || 1;
     initEnemies.forEach(enemy => {
         enemy.atk += 10 * level;
-        enemy.def += 10 * level;
+        enemy.def += 15 * level;
         enemy.hp += 1000 * level;
         enemy.maxHp += 1000 * level;
         enemy.speed += 10 * level;
@@ -1086,7 +1086,7 @@ function stopTargetSelector() {
 function handleLose() {
     stopTargetSelector();
     pauseAudio();
-    showMessage("You lost! Game over!");
+    showMessage("You lost! Game over!", 5000, 2);
     if(camera.position.x !== 3 || camera.position.y !== 4 || camera.position.z !== 7) {
         animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.1);
     }
@@ -1098,12 +1098,12 @@ function handleLose() {
         score: 0,
         state: "world",
     }
-    localStorage.setItem('gameData', JSON.stringify(gameData));
-    localStorage.setItem('playerData', JSON.stringify(initPlayerData));
-    console.log("Player data stored in localStorage: ", initPlayerData);
     setTimeout(() => {
-        window.location.href = "world.html";
-    }, 1500);
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+        localStorage.setItem('playerData', JSON.stringify(initPlayerData));
+        console.log("Player data stored in localStorage: ", initPlayerData);
+        window.location.href = "index.html";
+    }, 5000);
 }
 
 function handleWin() {
@@ -1115,7 +1115,7 @@ function handleWin() {
     }
 
     let updateGameData = {
-        level: gameData.level,
+        level: gameData.level + 1,
         score: gameData.score + 500,
         state: "win",
     }
@@ -1512,6 +1512,7 @@ function hyperSkill2(attacker) {
     }, 1500);
 
     function onClick() {
+        if(ammo <= 0) return;
         ammo -= 1;
         // Create an ammo cube
         const ammoGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
@@ -1585,6 +1586,7 @@ function hyperSkill3() {
         console.log("Speed up and forward action!");
         const ultraBuff = new Buff("Ultra", "incAtk", 100, 1, allPlayers);
         ultraBuff.applyEffect();
+        skillDots += 2;
         updateStatusPanel();
         setTimeout(() => {
             camera.position.set(0, 3, 5);
@@ -1827,7 +1829,7 @@ const tutorialData = [
         text: "The skill information: \n" +
             "Player 1: Skill: Deal damage, decrease speed of enemy by 70. Hyper Skill: Deal damage and speed down all enemies by 50.\n" +
             "Player 2: Skill: Deal great damage to the enemy. Hyper Skill: Shoot 3 ammos to target enemies, power increasing each time.\n" +
-            "Player 3: Skill: Heal target and let it act immediately. Then heal all players. Hyper Skill: Heal and speed up all players and buff their attack.\n"
+            "Player 3: Skill: Heal target and let it act immediately. Then heal all players. Hyper Skill: Heal and speed up all players, increase attack, restore 2 skill-dots.\n"
     },
     {
         image: "data/tutorial/combat/actseq.png",

@@ -130,6 +130,8 @@
     let bgm, autoMusicTrigger = true;
     const audioLoader = new THREE.AudioLoader();
     const listener = new THREE.AudioListener();
+    let cubeLevels = [1, 2, 3, 4, 5];
+    let clockLevels = [1, 2, 3, 4, 5];
 
     bgm = new THREE.Audio(listener);
     audioLoader.load('data/sounds/Main_bgm.m4a', function (buffer) {
@@ -148,6 +150,8 @@
 
     document.getElementById('start-button').addEventListener('click', function() {
         localStorage.clear();
+        localStorage.setItem('cubeLevels', JSON.stringify(cubeLevels));
+        localStorage.setItem('clockLevels', JSON.stringify(clockLevels));
         window.location.href = 'bigworld.html';
     });
 
@@ -158,6 +162,8 @@
     document.getElementById('inf-mode').addEventListener('click', function() {
         localStorage.clear();
         localStorage.setItem('infMode', "true");
+        localStorage.setItem('cubeLevels', JSON.stringify(cubeLevels));
+        localStorage.setItem('clockLevels', JSON.stringify(clockLevels));
         window.location.href = 'world.html';
     });
 </script>

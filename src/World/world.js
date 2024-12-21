@@ -397,6 +397,7 @@ function placeLayout() {
     player.position.set(9, groundLevel, 1);
     if (positionData) {
         player.position.set(positionData.player[0], positionData.player[1], positionData.player[2]);
+        jumpInProgress = true;
     }
     player.castShadow = true;
     player.receiveShadow = true;
@@ -456,7 +457,7 @@ function updatePlayerPanel(index) {
     document.getElementById("player-crit").innerText = `Crit Rate: ${player.crit_rate * 100}%`;
     document.getElementById("player-speed").innerText = `Speed: ${player.speed}`;
     document.getElementById("money").innerText = `Money: $${gameData.score}`;
-    document.getElementById("restore-hp").innerText = `Restore HP (Cost: $${Math.ceil(player.maxHp - player.hp) / 10})`;
+    document.getElementById("restore-hp").innerText = `Restore HP (Cost: $${Math.ceil((player.maxHp - player.hp) / 10)})`;
 }
 
 function addUpdatePanel() {
@@ -876,6 +877,13 @@ function handleNextStage() {
         localStorage.setItem('gameData', JSON.stringify(gameData));
         window.location.href = 'path.html';
     } else {
+        if(gameData.level === 16){
+            showMessage("You have completed all levels!", 5000);
+            setTimeout(() => {
+                window.location.href = 'index.html';
+            }, 5000);
+            return;
+        }
         localStorage.removeItem('positionData');
         gameData.state = "world";
         localStorage.setItem('gameData', JSON.stringify(gameData));
@@ -985,11 +993,12 @@ document.getElementById("right-button").addEventListener("click", function () {
 document.getElementById("upgrade-atk").addEventListener("click", function () {
     if (gameData.score >= 10) {
         playerData[selectedPlayerIndex].atk += 10;
+        playerData[selectedPlayerIndex].speed += 2;
         gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
-        showMessage("ATK upgraded 10! Cost 10.")
+        showMessage("ATK upgraded 10! Cost 100.")
     } else {
         showMessage("Not enough money!", 2);
     }
@@ -997,11 +1006,12 @@ document.getElementById("upgrade-atk").addEventListener("click", function () {
 document.getElementById("upgrade-def").addEventListener("click", function () {
     if (gameData.score >= 10) {
         playerData[selectedPlayerIndex].def += 20;
+        playerData[selectedPlayerIndex].speed += 2;
         gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
-        showMessage("DEF upgraded 20! Cost 10.")
+        showMessage("DEF upgraded 20! Cost 100.")
     } else {
         showMessage("Not enough money!", 2);
     }
@@ -1009,25 +1019,26 @@ document.getElementById("upgrade-def").addEventListener("click", function () {
 document.getElementById("upgrade-hp").addEventListener("click", function () {
     if (gameData.score >= 20) {
         let percent = playerData[selectedPlayerIndex].hp / playerData[selectedPlayerIndex].maxHp;
-        playerData[selectedPlayerIndex].maxHp += 100;
+        playerData[selectedPlayerIndex].maxHp += 200;
+        playerData[selectedPlayerIndex].speed += 2;
         playerData[selectedPlayerIndex].hp = Math.floor(playerData[selectedPlayerIndex].maxHp * percent);
         gameData.score -= 100;
         updatePlayerPanel(selectedPlayerIndex);
         localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
-        showMessage("HP upgraded 100! Cost 20.")
+        showMessage("HP upgraded 200! Cost 100.")
     } else {
         showMessage("Not enough money!", 2);
     }
 });
 document.getElementById("restore-hp").addEventListener("click", function () {
     if (gameData.score >= Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10)) {
-        playerData[selectedPlayerIndex].hp = playerData[selectedPlayerIndex].maxHp;
         gameData.score -= Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10);
-        updatePlayerPanel(selectedPlayerIndex);
-        localStorage.setItem('playerData', JSON.stringify(playerData));
         localStorage.setItem('gameData', JSON.stringify(gameData));
         showMessage("HP restored! Cost " + Math.ceil((playerData[selectedPlayerIndex].maxHp - playerData[selectedPlayerIndex].hp) / 10) + ".");
+        playerData[selectedPlayerIndex].hp = playerData[selectedPlayerIndex].maxHp;
+        localStorage.setItem('playerData', JSON.stringify(playerData));
+        updatePlayerPanel(selectedPlayerIndex);
     } else {
         showMessage("Not enough money!", 2);
     }

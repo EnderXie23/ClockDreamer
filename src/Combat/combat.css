@@ -10,13 +10,18 @@ body, html {
 #left-sidebar {
     width: 20vw;
     height: max-content;
-    max-height: 80vh;
     background-color: rgba(0, 0, 0, 0.7);
     color: white;
     padding: 10px;
     font-family: Arial, sans-serif;
     overflow-y: auto;
-    pointer-events: none;
+}
+
+#action-sequence {
+    height: max-content;
+    max-height: 75vh;
+    font-family: Arial, sans-serif;
+    overflow-y: hidden;
 }
 
 #container {

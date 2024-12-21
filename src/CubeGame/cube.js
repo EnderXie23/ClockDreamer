@@ -3,6 +3,9 @@ import {OrbitControls} from "three/addons/controls/OrbitControls.js";
 
 let renderer, scene, light, camera, controls;
 let gameData, data, win = false;
+const audioLoader = new THREE.AudioLoader();
+const listener = new THREE.AudioListener();
+let bgm, autoMusicTrigger = true;
 
 // Create Raycaster and mouse vector
 const raycaster = new THREE.Raycaster();
@@ -10,6 +13,7 @@ const mouse = new THREE.Vector2();
 let actionCubes = [], intersects = [];
 let targetCube;
 let dragging = false;
+let cubeLevels = [], levelInd;
 
 // Cube
 let cubeGeometry = new THREE.BoxGeometry(0.85, 0.85, 0.85);
@@ -80,21 +84,27 @@ function loadGameData(key) {
 }
 
 function loadAllAssets() {
-    // const textureURLs = ['data/textures/rocky_terrain.jpg', 'data/textures/grassy_terrain.jpg'];
-    // const modelURLs = ['data/models/cube_character.glb', 'data/models/fence.glb', 'data/models/cube_monster.glb'];
-    const dataKeys = ['gameData']
-
-    // const texturePromises = textureURLs.map(url => loadTexture(url));
-    // const modelPromises = modelURLs.map(url => loadModel(url));
+    const dataKeys = ['gameData', 'cubeLevels']
     const gameDataPromises = dataKeys.map(key => loadGameData(key));
+
+    bgm = new THREE.Audio(listener);
+    audioLoader.load('data/sounds/Main_bgm.m4a', function (buffer) {
+        bgm.setBuffer(buffer);
+        bgm.setLoop(true);
+        bgm.setVolume(0.3);
+    });
 
     Promise.all([...gameDataPromises])
         .then((results) => {
-            gameData = results.slice(0, 1)[0];
+            gameData = results.slice(0, dataKeys.length)[0];
+            cubeLevels = results.slice(0, dataKeys.length)[1];
             console.log("Loaded game data: ", gameData);
+            console.log("Loaded cube levels: ", cubeLevels);
             resolveGameData();
 
-            const path = "data/cubes/cube" + Math.ceil(gameData.level / 3) + ".json";
+            // Choose a random level from the available levels
+            levelInd = Math.floor(Math.random() * cubeLevels.length);
+            const path = "data/cubes/cube" + cubeLevels[levelInd] + ".json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
             showMessage("Welcome to the cube game! You are now at game " + Math.ceil(gameData.level / 3) + ".");
@@ -113,13 +123,35 @@ function loadAllAssets() {
 }
 
 function resolveGameData() {
-    if (gameData.state !== "in game" || gameData.gameMode !== 2) {
+    if (cubeLevels.length === 0 || gameData.state !== "in game" || gameData.gameMode !== 2) {
         showMessage("Wrong game state.", 1500, 2);
         setTimeout(() => {
-            // window.location.href = "path.html";
+            // window.location.href = "world.html";
         }, 1000);
         // return new Error("Wrong game state");
     }
+}
+
+function pauseAudio(fadeOutDuration = 1, fadeOutSteps = 60) {
+    let currentGain = bgm.gain.gain.value;
+    let fadeOutStep = currentGain / fadeOutDuration / fadeOutSteps;
+    let stepCount = 0;
+
+    function fadeOutAudio() {
+        if (stepCount < fadeOutSteps) {
+            // Decrease the volume gently
+            bgm.gain.gain.value = currentGain - (fadeOutStep * stepCount);
+            stepCount++;
+            requestAnimationFrame(fadeOutAudio);
+        } else {
+            // Once the fade out is complete, you can stop the audio
+            bgm.pause();
+            bgm.gain.gain.value = currentGain;
+        }
+    }
+
+    // Trigger the fade-out effect when you want
+    fadeOutAudio();
 }
 
 function init() {
@@ -341,6 +373,11 @@ function showMessage(message, duration = 1500, mode = 1) {
 // Handle mouse down event (selecting objects)
 function onMouseDown(event) {
     dragging = false;
+    if (autoMusicTrigger) {
+        showMessage("Music is playing!");
+        bgm.play();
+        autoMusicTrigger = false;
+    }
 
     // Calculate mouse position in normalized device coordinates (-1 to +1)
     if(isMobile()){
@@ -407,6 +444,7 @@ function onMouseUp() {
 
 function handleWin() {
     win = true;
+    pauseAudio();
     let updateGameData = {
         level: gameData.level + 1,
         score: gameData.score + 500,
@@ -414,6 +452,10 @@ function handleWin() {
     }
     localStorage.setItem('gameData', JSON.stringify(updateGameData));
     console.log("Game data update:" + JSON.stringify(updateGameData));
+    // Remove levelInd from cubeLevels
+    cubeLevels.splice(levelInd, 1);
+    localStorage.setItem('cubeLevels', JSON.stringify(cubeLevels));
+    console.log("Cube levels update:" + JSON.stringify(cubeLevels));
     showMessage("Congratulations! You have won!");
 
     setTimeout(() => {
