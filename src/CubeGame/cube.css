@@ -58,6 +58,9 @@ body {
     z-index: 1;
     transform: translateX(-50%);
     pointer-events: none; /* Prevent clicks while hidden */
+    user-select: none;
+    -webkit-user-select: none; /* For Safari */
+    -webkit-touch-callout: none;
     transition: opacity 0.5s ease;
 }
 

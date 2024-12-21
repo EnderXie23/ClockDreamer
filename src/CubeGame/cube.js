@@ -97,6 +97,7 @@ function loadAllAssets() {
             const path = "data/cubes/cube" + Math.ceil(gameData.level / 3) + ".json";
             const dataPaths = [path];
             const dataPromises = dataPaths.map(path => loadFromFile(path));
+            showMessage("Welcome to the cube game! You are now at game " + Math.ceil(gameData.level / 3) + ".");
             Promise.all([...dataPromises])
                 .then((results2) => {
                     data = results2[0];

@@ -4,7 +4,7 @@ import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
 import {MMDLoader} from "three/addons/loaders/MMDLoader";
 
 // Basic three.js setup
-let renderer, scene, camera;
+let renderer, scene, camera, light, texture;
 let mirror, dragObj = [], spinObj = [];
 let bgm, autoMusicTrigger = true;
 const audioLoader = new THREE.AudioLoader();
@@ -153,6 +153,7 @@ class Model {
         this.currentStage = 0;  // 当前动画阶段
         this.animationStages = [];
         this.model.position.set(this.startX, this.startY, this.startZ);
+        this.model.layers.set(NO_REF_LAYER)
         scene.add(this.model);
         this.model.layers.set(NO_REF_LAYER);
     }
@@ -225,6 +226,18 @@ function loadAllAssets() {
         bgm.setBuffer(buffer);
         bgm.setLoop(true);
         bgm.setVolume(0.15);
+    });
+
+    const textureLoader = new THREE.TextureLoader();
+    const colorMap = textureLoader.load('data/textures/cube/metal_0082_color_1k.jpg'); // Base color
+    const aoMap = textureLoader.load('data/textures/cube/metal_0082_ao_1k.jpg'); // Ambient Occlusion
+    const normalMap = textureLoader.load('data/textures/cube/metal_0082_normal_opengl_1k.png'); // Normal map
+    const roughnessMap = textureLoader.load('data/textures/cube/metal_0082_roughness_1k.jpg'); // Roughness
+    texture = new THREE.MeshStandardMaterial({
+        map: colorMap,           // Base color
+        aoMap: aoMap,            // Ambient occlusion
+        normalMap: normalMap,    // Normal map
+        roughnessMap: roughnessMap, // Roughness
     });
 
     const dataKeys = ['gameData', 'infMode'];
@@ -320,7 +333,8 @@ function init(){
 
     // Create scene
     scene = new THREE.Scene();
-    scene.background = new THREE.Color(0xD2B48C);
+    const loader = new THREE.TextureLoader();
+    scene.background = loader.load('data/img/3.jpg');
 
     // Create camera
     camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -336,6 +350,13 @@ function init(){
     // Translate camera
     const translationMatrix = new THREE.Matrix4().makeTranslation(2, 3.5, 0);
     camera.applyMatrix4(translationMatrix);
+
+    light = new THREE.AmbientLight(0xffffff, 5);
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 2);
+    directionalLight.position.set(-10, 10, 10);
+    directionalLight.castShadow = true;
+    scene.add(directionalLight);
+    scene.add(light);
 
     // Create mirror
     const mirrorWidth = data.mirror.size[0];
@@ -363,10 +384,16 @@ function init(){
     // Draggable block
     data.dragObj.forEach(obj => {
         const dragGroup = new THREE.Group();
-        const dragObjGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const blockMaterialDrag = new THREE.MeshBasicMaterial({color: 0xFFB432});
+
+        // Load textures
+        texture.roughness = 1;
+        texture.metalness = 0.5;
+        texture.color = new THREE.Color(0xFFB432);
+        const dragObjGeometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
         obj.shape.forEach(shape => {
-            const block = new THREE.Mesh(dragObjGeometry, blockMaterialDrag);
+            const block = new THREE.Mesh(dragObjGeometry, texture.clone());
+            block.castShadow = true;
+            block.receiveShadow = true;
             block.position.set(shape.x, shape.y, shape.z);
             dragGroup.add(block);
         });
@@ -382,10 +409,16 @@ function init(){
     // Spinning block
     data.spinObj.forEach(obj => {
         const spinGroup = new THREE.Group();
-        const spinObjGeometry = new THREE.BoxGeometry(1, 1, 1);
-        const blockMaterialSpin = new THREE.MeshBasicMaterial({color: 0xFF6432});
+        const spinObjGeometry = new THREE.BoxGeometry(0.95, 0.95, 0.95);
+
+        // Load textures
+        texture.roughness = 0.7;
+        texture.metalness = 0.5;
+        texture.color = new THREE.Color(0xFF93D3);
         obj.shape.forEach(shape => {
-            const block = new THREE.Mesh(spinObjGeometry, blockMaterialSpin);
+            const block = new THREE.Mesh(spinObjGeometry, texture.clone());
+            block.castShadow = true;
+            block.receiveShadow = true;
             block.position.set(shape.x, shape.y, shape.z);
             spinGroup.add(block);
         });
@@ -496,14 +529,19 @@ function renderRotation(ind) {
 
 function createTrail() {
     // Create a simple 3D trail using box geometries
-    const trailMaterial = new THREE.MeshBasicMaterial({color: 0xC8643C});
-    const trailWidth = 1;
+    // Load textures
+    texture.roughness = 0.2;
+    texture.metalness = 0.7;
+    texture.color = new THREE.Color(0x8B4513);
+    const trailWidth = 0.95;
 
     data.trail.forEach((pos) => {
         const trailSegment = new THREE.Mesh(
-            new THREE.BoxGeometry(trailWidth, 1, 1),
-            trailMaterial
+            new THREE.BoxGeometry(trailWidth, 0.95, 0.95),
+            texture.clone()
         );
+        trailSegment.castShadow = true;
+        trailSegment.receiveShadow = true;
         trailSegment.position.set(pos[0], pos[1], pos[2]);
         scene.add(trailSegment);
         trailSegment.layers.set(MAIN_LAYER);
