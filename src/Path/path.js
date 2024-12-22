@@ -597,16 +597,11 @@ let applyMovement = async () => {
         if (currentPos.x === DEST[i].x && currentPos.y === DEST[i].y) {
             if(litLightNum === i + 1) {
                 if(i === 3) { // Game end
-                    gameData = {
-                        level: 1,
-                        score: 0,
-                        state: "path",
-                    }
-                    localStorage.setItem('gameData', JSON.stringify(gameData));
-                    showMessage("Congratulations! You have completed the game!");
+                    showMessage("Congratulations! You have completed the game!", 5000);
                     setTimeout(() => {
+                        localStorage.clear();
                         window.location.href = "index.html";
-                    }, 1000);
+                    }, 5000);
                 } else { // Enter new level
                     enterLight();
                 }
@@ -664,7 +659,7 @@ function enterLight() {
     }, 1000);
 }
 
-function showMessage(message, mode = 1) {
+function showMessage(message, duration=2000, mode = 1) {
     const messageBox = document.getElementById('messageBox');
     const messageText = document.getElementById('messageText');
 
@@ -677,11 +672,10 @@ function showMessage(message, mode = 1) {
         messageBox.style.backgroundColor = "rgba(0, 0, 0, 0.8)";
     }
 
-
     // Optional: Hide the message after a delay (e.g., 3 seconds)
     setTimeout(() => {
         messageBox.classList.remove('show');
-    }, 2000);  // Message disappears after 3 seconds
+    }, duration);  // Message disappears after 3 seconds
 }
 
 // BFS pathfinding

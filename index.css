@@ -1,0 +1,184 @@
+body {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+    font-family: 'Arial', sans-serif;
+    background: url('data/img/start.png') no-repeat center center fixed;
+    background-size: cover;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    color: white;
+}
+
+/* 半透明容器 */
+#welcome-screen {
+    text-align: center;
+    background: rgba(0, 0, 0, 0.5); /* 调整透明度 */
+    padding: 40px;
+    border-radius: 20px;
+    box-shadow: 0 8px 30px rgba(0, 0, 0, 0.6); /* 增加阴影 */
+    backdrop-filter: blur(5px); /* 添加模糊效果 */
+}
+
+/* 游戏标题 */
+#game-title {
+    font-size: 3.5rem;
+    font-weight: bold;
+    letter-spacing: 2px;
+    margin-bottom: 40px;
+    background: linear-gradient(90deg, #d4a017, #e67e22); /* 暗黄色到暗橙色渐变 */
+    background-clip: text;
+    -webkit-background-clip: text;
+    color: transparent; /* 仅显示渐变 */
+    text-shadow: 0 0 30px rgba(212, 160, 23, 0.6), 0 0 50px rgba(230, 126, 34, 0.8);
+    animation: pulseGlow 2.5s infinite; /* 动态发光 */
+}
+
+@keyframes pulseGlow {
+    0%, 100% {
+        text-shadow: 0 0 20px rgba(212, 160, 23, 0.6), 0 0 30px rgba(230, 126, 34, 0.8);
+    }
+    50% {
+        text-shadow: 0 0 40px rgba(255, 195, 18, 0.8), 0 0 60px rgba(245, 146, 35, 0.9);
+    }
+}
+
+/* 按钮设计 */
+.menu-button {
+    display: block;
+    margin: 15px auto;
+    padding: 15px 40px;
+    font-size: 1.2rem;
+    font-weight: bold;
+    color: #ffffff;
+    background: linear-gradient(145deg, #6b4f25, #9b6a2d); /* 暗黄色系立体渐变 */
+    border: none;
+    border-radius: 30px;
+    box-shadow: 5px 5px 10px rgba(0, 0, 0, 0.4), -5px -5px 10px rgba(255, 255, 255, 0.1);
+    cursor: pointer;
+    transition: all 0.3s ease;
+    text-transform: uppercase;
+    width: 220px;
+}
+
+.menu-button:hover {
+    background: linear-gradient(145deg, #9b6a2d, #6b4f25);
+    box-shadow: 0 4px 15px rgba(245, 146, 35, 0.6); /* 悬停时添加橙色光晕 */
+    transform: translateY(-3px); /* 鼠标悬停效果 */
+}
+
+.menu-button:active {
+    transform: scale(0.98);
+    box-shadow: inset 2px 2px 5px rgba(0, 0, 0, 0.6); /* 内凹效果 */
+}
+
+/* 分隔线 */
+.separator {
+    height: 2px;
+    background: linear-gradient(to right, #9b6a2d, transparent); /* 暗橙渐变 */
+    margin: 20px auto;
+    width: 60%;
+    border-radius: 1px;
+}
+
+/* 淡入动画 */
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+        transform: translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+#welcome-screen {
+    animation: fadeIn 1.5s ease-out;
+}
+
+.yes-no-module {
+    position: fixed;
+    text-align: center;
+    backdrop-filter: blur(5px);
+
+    max-width: 500px;
+    margin: 50px auto;
+    padding: 20px;
+    background-color: rgba(255, 255, 255, 0.9);
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    opacity: 0;
+    z-index: -1;
+    transition: all 0.3s ease;
+}
+
+/* Heading */
+.yes-no-module .heading {
+    font-size: 1.5rem;
+    margin-bottom: 10px;
+    color: #333;
+}
+
+/* Question */
+.yes-no-module .question {
+    font-size: 1.2rem;
+    margin-bottom: 20px;
+    color: #333;
+}
+
+/* Form Styling */
+.yes-no-module .form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+}
+
+/* Choice Styling */
+.yes-no-module .choice {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 1rem;
+    cursor: pointer;
+}
+
+/* Radio Button */
+.yes-no-module .choice input[type="radio"] {
+    accent-color: #007bff;
+    width: 18px;
+    height: 18px;
+}
+
+/* Label Text */
+.yes-no-module .label-text {
+    font-size: 1rem;
+    color: #333;
+}
+
+/* Submit Button */
+.yes-no-module .submit-button {
+    margin-top: 20px;
+    padding: 10px 20px;
+    font-size: 1rem;
+    background-color: #007bff;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+}
+
+.yes-no-module .submit-button:hover {
+    background-color: #0056b3;
+}
+
+/* Result Text */
+.yes-no-module .result {
+    margin-top: 20px;
+    font-size: 1.2rem;
+    color: #007bff;
+}

@@ -1091,17 +1091,10 @@ function handleLose() {
         animateCameraMove(new THREE.Vector3(3, 4, 7), new THREE.Vector3(0, 0, 0), 75, 0.1);
     }
 
-    // Store player data
-    console.log("Reset game data.");
-    const gameData = {
-        level: 1,
-        score: 0,
-        state: "world",
-    }
+    // Clear game data
     setTimeout(() => {
-        localStorage.setItem('gameData', JSON.stringify(gameData));
-        localStorage.setItem('playerData', JSON.stringify(initPlayerData));
-        console.log("Player data stored in localStorage: ", initPlayerData);
+        console.log("Reset game data.");
+        localStorage.clear();
         window.location.href = "index.html";
     }, 5000);
 }
