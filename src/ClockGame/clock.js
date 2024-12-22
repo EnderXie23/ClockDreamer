@@ -319,6 +319,9 @@ function moveToGoal(){
                 animationInProgress = false;
                 model.currentStage = 0;
                 goalInd++;
+                if(clockLevels[levelInd] === 5 && goalInd === 1){
+                    scene.remove(spinObj[0])
+                }
                 if(goalInd === data.destinations.length){
                     handleWin();
                 } else {
