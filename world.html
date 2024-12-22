@@ -54,6 +54,25 @@
     <button class="menu-button" id="panelButton">Panel</button>
     <button class="menu-button" id="attackButton">Attack</button>
     <button class="menu-button" id="jumpButton">Jump</button>
+    <button class="menu-button" id="tutorialButton">Tutorial</button>
+</div>
+<div id="tutorial-canvas" class="tutorial-canvas">
+    <div id="tutorial-container" class="tutorial-container">
+        <button id="prev-btn" class="nav-btn">←</button>
+        <div class="tutorial-content">
+            <img id="tutorial-image" src="data/tutorial/world/main.png" alt="Tutorial Step 1" />
+            <p id="tutorial-text">Step 1: Learn how to navigate!</p>
+        </div>
+        <div class="tutorial-nav">
+            <div id="dot-indicator" class="dot-indicator">
+                <span id="dot-1" class="dot active"></span>
+                <span id="dot-2" class="dot"></span>
+                <span id="dot-3" class="dot"></span>
+            </div>
+        </div>
+        <button id="next-btn" class="nav-btn">→</button>
+        <button id="close-btn" class="close-btn">X</button>
+    </div>
 </div>
 <script type="importmap">
     {

@@ -281,6 +281,7 @@ function init() {
         });
     } else {
         document.getElementById("panelButton").innerText = "Panel (Press E)"
+        document.getElementById("tutorialButton").innerText = "Tutorial (Press T)"
         document.getElementById("jumpButton").style.display = "none";
         document.getElementById("attackButton").style.display = "none";
     }
@@ -896,8 +897,16 @@ function handleNextStage() {
     }
 }
 
-function animate() {
+const desiredFPS = 70;
+const frameInterval = 1000 / desiredFPS; // Time per frame in milliseconds
+let lastFrameTime = 0;
+
+function animate(currentTime) {
     requestAnimationFrame(animate);
+    // Calculate elapsed time since the last frame
+    const delta = currentTime - lastFrameTime;
+    if(delta < frameInterval) return;
+    lastFrameTime = currentTime;
 
     handleMovement();
     handleTarget();
@@ -958,14 +967,20 @@ document.addEventListener('keydown', (event) => {
         }
     }
     if (keys['t']) {
-        const _euler = new Euler(0, 0, 0, 'YXZ');
-        _euler.setFromQuaternion(camera.quaternion);
-        console.log(_euler);
+        if(!panelOpen){
+            if(!isMobile()) controls.unlock();
+            showTutorial();
+        } else {
+            panelOpen = false;
+            tutorialCanvas.style.display = "none";
+            if(!isMobile()) controls.lock();
+        }
     }
     if (keys['e']) {
         handlePanel();
     }
     if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
+        console.log(stats);
         jumpInProgress = true;
         velocity = jumpHeight;  // Initial jump force
     }
@@ -1220,3 +1235,141 @@ const initPlayerData = [
         speed: 215
     },
 ]
+
+
+// Tutorial
+const tutorialCanvas = document.getElementById("tutorial-canvas");
+const tutorialContainer = document.getElementById("tutorial-container");
+const prevBtn = document.getElementById("prev-btn");
+const nextBtn = document.getElementById("next-btn");
+const closeBtn = document.getElementById("close-btn");
+let isSwiping = false, startX = 0;
+
+const tutorialText = document.getElementById("tutorial-text");
+const tutorialImage = document.getElementById("tutorial-image");
+const dotIndicator = document.getElementById("dot-indicator");
+
+let currentPage = 0;
+const totalPages = 3; // Adjust this based on the number of tutorial steps
+
+// Tutorial Data (You can add more steps as needed)
+const tutorialData = [
+    {
+        image: "data/tutorial/world/main.png",
+        text: "The big world is a place for you to explore."
+    },
+    {
+        image: "data/tutorial/world/panel.png",
+        text: "Click on the panel button or press E to open the player panel.\n" +
+            "You can upgrade your player's attributes here after a game. Each game gives you 500$ reward.\n" +
+            "You can also change your character here."
+    },
+    {
+        image: "data/tutorial/world/act.png",
+        text: "When you are near an interactive object, follow the instructions to proceed."
+    }
+];
+
+// Function to update the tutorial display
+function updateTutorial() {
+    // fade-in and fade-out animation
+    const tutorialContent = document.querySelector('.tutorial-content');
+    tutorialContent.style.opacity = 0;
+    // Update dot indicator
+    const dots = dotIndicator.getElementsByClassName("dot");
+    for (let i = 0; i < dots.length; i++) {
+        dots[i].classList.remove("active");
+    }
+    dots[currentPage].classList.add("active");
+
+    setTimeout(() =>{
+        const { image, text } = tutorialData[currentPage];
+        tutorialImage.src = image;
+        tutorialText.textContent = text;
+        tutorialText.innerHTML = tutorialText.innerHTML.replace(/\n/g, '<br>');
+        tutorialContent.style.opacity = 1;
+    }, 200);
+}
+
+// Close button functionality
+closeBtn.addEventListener("click", () => {
+    tutorialCanvas.style.display = "none"; // Hide the tutorial
+    panelOpen = false;
+    if(!isMobile()) controls.lock();
+});
+
+document.getElementById("tutorialButton").addEventListener("click", () => {
+    showTutorial();
+});
+
+tutorialContainer.addEventListener('mousedown', (e) => {
+    startX = e.clientX;
+    isSwiping = true;
+});
+
+// Navigation buttons functionality
+prevBtn.addEventListener("click", () => {
+    if (currentPage > 0) {
+        currentPage--;
+        updateTutorial();
+    }
+});
+
+nextBtn.addEventListener("click", () => {
+    if (currentPage < totalPages - 1) {
+        currentPage++;
+        updateTutorial();
+    }
+});
+
+tutorialContainer.addEventListener('mousemove', (e) => {
+    if (isSwiping) {
+        const moveX = e.clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('mouseup', () => {
+    isSwiping = false;
+});
+
+tutorialContainer.addEventListener('touchstart', (e) => {
+    startX = e.touches[0].clientX;
+    isSwiping = true;
+});
+
+tutorialContainer.addEventListener('touchmove', (e) => {
+    if (isSwiping) {
+        const moveX = e.touches[0].clientX - startX;
+        if (Math.abs(moveX) > 50) {
+            if (moveX > 0 && currentPage > 0) {
+                currentPage--;
+                updateTutorial();
+            } else if (moveX < 0 && currentPage < totalPages - 1) {
+                currentPage++;
+                updateTutorial();
+            }
+            isSwiping = false;
+        }
+    }
+});
+
+tutorialContainer.addEventListener('touchend', () => {
+    isSwiping = false;
+});
+
+// Initial tutorial setup
+function showTutorial() {
+    panelOpen = true;
+    tutorialCanvas.style.display = "flex"; // Show the tutorial
+    updateTutorial();
+}
