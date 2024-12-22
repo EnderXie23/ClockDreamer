@@ -125,7 +125,8 @@ function loadAllAssets() {
         'data/textures/waternormals.png'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/cube_character2.glb', 'data/models/cube_character3.glb',
         'data/models/fence.glb', 'data/models/cube_monster.glb',
-        'data/models/gate.glb', "data/models/gate_off.glb", "data/models/chest.glb"];
+        'data/models/gate.glb', "data/models/gate_off.glb",
+        "data/models/chest.glb", "data/models/cube.glb", "data/models/clock.glb"];
     const dataKeys = ['gameData', 'playerData', 'positionData', 'modelData', 'infMode'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
@@ -169,9 +170,8 @@ function loadAllAssets() {
 
 function resolveGameData() {
     // Check if game data exists
-    if (gameData === null || (gameData && gameData.state !== "world" && gameData.state !== "win")) {
-        console.log("No game data found in localStorage.");
-        showMessage("Wrong game state!", 2);
+    if (gameData === null) {
+        showMessage("No game data found in localStorage!", 2);
         setTimeout(()=>{
             window.location.href = 'index.html';
         }, 2000);
@@ -364,21 +364,21 @@ function placeLayout() {
             console.log("Game mode: battle");
             building = loadedModels[4];
             building.scale.set(3, 3, 3);
+            building.material.transparent = true;
+            building.material.opacity = 0.7;
         } else if (gameMode === 2) {
             console.log("Game mode: cube game");
             // create a block object for building
-            const geometry = new THREE.BoxGeometry(2, 2, 2);
-            const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
-            building = new THREE.Mesh(geometry, material);
+            building = loadedModels[8].children[0].children[0].children[0].children[0];
+            building.scale.set(20, 20, 20);
+            building.material.transparent = true;
+            building.material.opacity = 0.7;
         } else if (gameMode === 3) {
             console.log("Game mode: clock game");
             // create a clock object for building
-            const geometry = new THREE.BoxGeometry(2, 2, 2);
-            const material = new THREE.MeshStandardMaterial({color: 0x00ff00});
-            building = new THREE.Mesh(geometry, material);
+            building = loadedModels[9].children[0].children[0].children[0];
+            building.scale.set(0.03, 0.03, 0.03);
         }
-        building.material.transparent = true;
-        building.material.opacity = 0.7;
         building.position.set(randX, 1, randZ);
         building.castShadow = true;
         building.receiveShadow = true;
@@ -387,10 +387,10 @@ function placeLayout() {
     }
 
     //Chest
-    randX = Math.floor(Math.random() * 40) - 20;
-    randZ = Math.floor(Math.random() * 20);
-    chest = loadedModels[7];
-    if (gameData.state !== "win") {
+    if (!localStorage.getItem('chestClaimed')) {
+        randX = Math.floor(Math.random() * 40) - 20;
+        randZ = Math.floor(Math.random() * 20);
+        chest = loadedModels[7];
         chest.scale.set(1.5, 1.5, 1.5);
         chest.position.set(randX, 0.7, randZ);
         chest.castShadow = true;
@@ -657,6 +657,14 @@ function handleMovement() {
 }
 
 function handleTarget() {
+    let distance;
+    if(!localStorage.getItem('chestClaimed')) {
+        distance = player.position.distanceTo(chest.position);
+        if (distance < 4) {
+            showGameHint((isMobile() ? 'Attack' : 'Press F') + ' to claim!');
+        }
+    }
+
     if (gameData.state === "win") {
         target.visible = false;
         if (player.position.distanceTo(gate.position) <= 4) {
@@ -665,14 +673,9 @@ function handleTarget() {
         return;
     }
 
-    let distance = player.position.distanceTo(building.position);
+    distance = player.position.distanceTo(building.position);
     if (distance < 4) {
         showGameHint();
-    }
-
-    distance = player.position.distanceTo(chest.position);
-    if (distance < 4) {
-        showGameHint((isMobile() ? 'Attack' : 'Press F') + ' to claim!');
     }
 
     target.position.copy(building.position);
@@ -1024,7 +1027,6 @@ document.addEventListener('keydown', (event) => {
         handlePanel();
     }
     if (event.code === 'Space' && !jumpInProgress && !panelOpen) {
-        console.log(stats);
         jumpInProgress = true;
         velocity = jumpHeight;  // Initial jump force
     }

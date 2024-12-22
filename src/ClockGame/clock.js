@@ -217,9 +217,9 @@ function resolveGameData() {
     if (clockLevels.length === 0 || gameData.state !== "in game" || gameData.gameMode !== 3) {
         showMessage("Wrong game state.", 1500, 2);
         setTimeout(() => {
-            // window.location.href = "world.html";
+            window.location.href = "world.html";
         }, 1000);
-        // return new Error("Wrong game state");
+        return new Error("Wrong game state");
     }
 }
 
@@ -291,7 +291,7 @@ function handleWin() {
     let updateGameData = {
         level: gameData.level + 1,
         score: gameData.score + 500,
-        state: (infMode? "win" : "path"),
+        state: "win",
     };
     localStorage.setItem('gameData', JSON.stringify(updateGameData));
     console.log("Game data updated: " + JSON.stringify(updateGameData));
@@ -301,10 +301,7 @@ function handleWin() {
     console.log("Clock levels update:" + JSON.stringify(clockLevels));
 
     setTimeout(() => {
-        if(infMode)
-            window.location.href = "world.html"; // 跳转到 Path 场景
-        else
-            window.location.href = "path.html"; // 跳转到 Path 场景
+        window.location.href = "world.html";
     }, 1000);
 }
 

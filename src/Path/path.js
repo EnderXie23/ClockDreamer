@@ -357,6 +357,7 @@ const GRAVITY = 1.0;
 const MOVEMENT = 2.5;
 // actual coordinates of floorplan[0][0][0]
 let defaultMapGeometry = new THREE.Vector3(0, 0, 0);
+let win = false;
 
 // =====Event Triggers======
 const DEST_BLACKLIST = [{z: 10, x: 9, y: 2}, {z: 10, x: 8, y: 8}, {z: 10, x: 4, y: 6}, {z: 10, x: 2, y: 10}]
@@ -397,6 +398,18 @@ function loadData(key) {
     });
 }
 
+function resolveGameData() {
+    if(!localStorage.getItem('gameData'))
+        localStorage.setItem('gameData', JSON.stringify(gameData));
+    if (gameData.state !== "path") {
+        showMessage("Wrong game state.", 1500, 2);
+        setTimeout(() => {
+            window.location.href = "world.html";
+        }, 1500);
+        return new Error("Wrong game state");
+    }
+}
+
 // ========== ON LOAD ==========
 async function loadGame() {
     window.addEventListener('load', async () => {
@@ -417,8 +430,7 @@ async function loadGame() {
 
                 Promise.all(dataPromises).then((values) => {
                     gameData = values[0] ? values[0] : {level: 1, score: 0, state: "path"};
-                    // if(gameData.state !== "path")
-                        // window.location.href = "world.html";
+                    resolveGameData();
 
                     litLightNum = Math.min(gameData.level, 4);
 
@@ -447,6 +459,7 @@ async function loadGame() {
 }
 
 function animate() {
+    if(win) return;
     requestAnimationFrame(animate);
     now = Date.now();
     elapsed = now - then;
@@ -641,6 +654,9 @@ let applyMovement = async () => {
 }
 
 function enterLight() {
+    if(win) reruen;
+    win = true;
+    showMessage("You have entered the light!", 2000);
     pauseAudio();
     document.removeEventListener('mousemove', onMouseMove);
     document.removeEventListener('mousedown', onMouseDown);

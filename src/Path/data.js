@@ -1,23 +1,3 @@
-var loadIntro = async () => {
-
-}
-
-var loadSomething = async () => {
-	
-}
-
-var loadElse = async () => {
-	
-}
-
-var loadPortfolio = async () => {
-	
-}
-
-var loadContact = async () => {
-	
-}
-
 export let data = {
 	"settings": {
 		"frameRate": 30,
@@ -28,7 +8,6 @@ export let data = {
 		"cellColor": "255, 127, 80",
 		"tail": "255, 215, 0",
 		"pointLight": "255, 246, 178",
-		// "pointLight": "255, 173, 236",
 		"pointLightScale": 3.5,
 	},
 	"floorplan": [

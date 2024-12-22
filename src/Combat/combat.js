@@ -216,9 +216,9 @@ function resolveGameData() {
     if (gameData.state !== "in game" || gameData.gameMode !== 1) {
         showMessage("Wrong game state", 1500, 2);
         setTimeout(() => {
-            // window.location.href = "path.html";
+            window.location.href = "world.html";
         }, 1000);
-        // return new Error("Wrong game state");
+        return new Error("Wrong game state");
     }
 
     // Set difficulty level
