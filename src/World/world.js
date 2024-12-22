@@ -10,7 +10,7 @@ import {Euler} from "three";
 // All global variables
 // Basic setup
 let camera, scene, renderer, controls, stats, zoom = 1;
-let building, fences, player, target, gate, water, sky, sun;
+let building, fences, player, target, gate, water, sky, sun, chest;
 let playerBox = new THREE.Box3();
 let loadedTextures = [], loadedModels = [];
 let gameData, playerData, positionData, gameMode;
@@ -125,7 +125,7 @@ function loadAllAssets() {
         'data/textures/waternormals.png'];
     const modelURLs = ['data/models/cube_character.glb', 'data/models/cube_character2.glb', 'data/models/cube_character3.glb',
         'data/models/fence.glb', 'data/models/cube_monster.glb',
-        'data/models/gate.glb', "data/models/gate_off.glb"];
+        'data/models/gate.glb', "data/models/gate_off.glb", "data/models/chest.glb"];
     const dataKeys = ['gameData', 'playerData', 'positionData', 'modelData', 'infMode'];
 
     const texturePromises = textureURLs.map(url => loadTexture(url));
@@ -357,6 +357,8 @@ function placeLayout() {
     scene.add(sky);
 
     // Building
+    let randX = Math.floor(Math.random() * 40) - 20;
+    let randZ = Math.floor(Math.random() * 20) - 20;
     if (gameData.state !== "win") {
         if (gameMode === 1) {
             console.log("Game mode: battle");
@@ -377,11 +379,24 @@ function placeLayout() {
         }
         building.material.transparent = true;
         building.material.opacity = 0.7;
-        building.position.set(-10, 1, 10);
+        building.position.set(randX, 1, randZ);
         building.castShadow = true;
         building.receiveShadow = true;
         obstacles.push(building);
         scene.add(building);
+    }
+
+    //Chest
+    randX = Math.floor(Math.random() * 40) - 20;
+    randZ = Math.floor(Math.random() * 20);
+    chest = loadedModels[7];
+    if (gameData.state !== "win") {
+        chest.scale.set(1.5, 1.5, 1.5);
+        chest.position.set(randX, 0.7, randZ);
+        chest.castShadow = true;
+        chest.receiveShadow = true;
+        obstacles.push(chest);
+        scene.add(chest);
     }
 
     // Gate
@@ -410,12 +425,19 @@ function placeLayout() {
     scene.add(player);
 
     // Fence
-    const types = [0, 1, 1, 1, 0, 1, 1, 1, 1];
-    const positions = [[0, 0, 5], [-3, 0, 4.5], [3.5, 0, 5], [9, 0, 5],
-        [0, 0, -4], [3.5, 0, -4], [9, 0, -4], [14, 0, 5], [14, 0, 0]];
-    const rotations = [0, Math.PI / 2, 0, 0, 0, 0, 0,
-        Math.PI / 2, Math.PI / 2];
-    addFences(types, positions, rotations);
+    const types = [0, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1,
+            1, 1, 1, 1, 1, 1, 1, 1, 1];
+    const positions = [[-22, 0, 25], [-18.5,0, 25], [-13, 0, 25], [-7.5, 0, 25], [-2, 0, 25], [3.5, 0, 25], [9, 0, 25], [14.5, 0, 25], [20, 0, 25],
+            [25, 0, 25], [25, 0, 19.5], [25, 0, 14], [25, 0, 8.5], [25, 0, 3], [25, 0, -2.5], [25, 0, -8], [25, 0, -13.5], [25, 0, -19],
+            [25, 0, -25], [19.5, 0, -25], [14, 0, -25], [8.5, 0, -25], [3, 0, -25], [-2.5, 0, -25], [-8, 0, -25], [-13.5, 0, -25], [-19, 0, -25],
+            [-24, 0, -25], [-24, 0, -19.5], [-24, 0, -14], [-24, 0, -8.5], [-24, 0, -3], [-24, 0, 2.5], [-24, 0, 8], [-24, 0, 13.5], [-24, 0, 19]];
+    const rotations = [0, 0, 0, 0, 0, 0, 0, 0, 0,
+            Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2, Math.PI/2,
+            Math.PI, Math.PI, Math.PI, Math.PI, Math.PI, Math.PI, Math.PI, Math.PI, Math.PI,
+            3*Math.PI/2, 3*Math.PI/2, 3*Math.PI/2,3*Math.PI/2,3*Math.PI/2,3*Math.PI/2,3*Math.PI/2,3*Math.PI/2,3*Math.PI/2];
+        addFences(types, positions, rotations);
 
     // Target mark
     target = new THREE.Group();
@@ -648,6 +670,11 @@ function handleTarget() {
         showGameHint();
     }
 
+    distance = player.position.distanceTo(chest.position);
+    if (distance < 4) {
+        showGameHint((isMobile() ? 'Attack' : 'Press F') + ' to claim!');
+    }
+
     target.position.copy(building.position);
     target.lookAt(player.position.x, target.position.y, player.position.z);
 
@@ -785,11 +812,11 @@ function showStageHint() {
     }, 1000);
 }
 
-function showGameHint() {
+function showGameHint(text=(isMobile() ? 'Attack' : 'Click the mouse') + ' to start') {
     const hintDiv = document.getElementById('stageHint');
 
     // 创建提示框内容
-    hintDiv.innerHTML = (isMobile() ? 'Attack' : 'Click the mouse') + ' to start';
+    hintDiv.innerHTML = text;
 
     // 设置提示框样式
     hintDiv.style.position = 'absolute';
@@ -808,6 +835,20 @@ function showGameHint() {
     setTimeout(() => {
         hintDiv.style.display = 'none';
     }, 1000);
+}
+
+function claimChest() {
+    if (localStorage.getItem('chestClaimed')) {
+        showMessage("OOps, you have already claimed the chest!", 2);
+        scene.remove(chest);
+        return;
+    }
+    let reward = Math.floor(Math.random() * 200) + 100;
+    showMessage("You have claimed the chest and received $" + reward + "!");
+    gameData.score += reward;
+    localStorage.setItem('gameData', JSON.stringify(gameData));
+    localStorage.setItem('chestClaimed', true);
+    scene.remove(chest);
 }
 
 function tryAttack() {
@@ -876,6 +917,7 @@ function handlePanel() {
 
 function handleNextStage() {
     pauseAudio();
+    localStorage.removeItem('chestClaimed');
     showMessage("Entering the next stage!");
 
     if (!infMode) {
@@ -913,7 +955,7 @@ function animate(currentTime) {
     handleJump();
     handleTransparency();
     const offset = new THREE.Vector3(0, zoom, 3 * zoom).applyQuaternion(camera.quaternion);
-    camera.position.lerp(player.position.clone().add(offset), 0.3 * zoom);
+    camera.position.lerp(player.position.clone().add(offset), 0.9);
 
     water.material.uniforms['time'].value += 1.0 / 120.0;
     stats.update();
@@ -959,9 +1001,11 @@ document.addEventListener('keydown', (event) => {
         localStorage.setItem('playerData', JSON.stringify(initPlayerData));
         console.log("Player data stored in localStorage: ", initPlayerData);
     }
-    if (keys['f'] && gameData.state === "win") {
-        if (player.position.distanceTo(gate.position) <= 4) {
+    if (keys['f']) {
+        if (gameData.state === "win" && player.position.distanceTo(gate.position) <= 4) {
             handleNextStage();
+        } else if (player.position.distanceTo(chest.position) <= 4) {
+            claimChest();
         } else {
             showMessage("You are not at the gate!");
         }
@@ -1066,6 +1110,7 @@ document.getElementById("restore-hp").addEventListener("click", function () {
 
 // Mouse event handling
 window.addEventListener('wheel', (event) => {
+    if (panelOpen) return;
     zoom = THREE.MathUtils.clamp(zoom + event.deltaY * 0.001, 0.5, 2);
 }, false);
 window.addEventListener('mousedown', onMouseDown, false);
@@ -1099,6 +1144,8 @@ document.getElementById("attackButton").addEventListener("click", function () {
         } else {
             showMessage("You are not at the gate!");
         }
+    } else if (player.position.distanceTo(chest.position) <= 4) {
+        claimChest();
     } else {
         tryAttack();
     }
@@ -1220,7 +1267,7 @@ const initPlayerData = [
         def: 100,
         crit_rate: 0.6,
         crit_dmg: 2,
-        speed: 190
+        speed: 210
     },
     {
         id: 3,
@@ -1232,7 +1279,7 @@ const initPlayerData = [
         def: 100,
         crit_rate: 0.6,
         crit_dmg: 2,
-        speed: 215
+        speed: 190
     },
 ]
 

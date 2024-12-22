@@ -170,10 +170,12 @@
 
 #player-panel {
     position: fixed;
-    top: 15%;
+    top: 10%;
     left: 30%;
     width: 40%;
-    height: 70%;
+    height: max-content;
+    max-height: 70vh;
+    overflow-y: auto;
     background-color: rgba(0, 0, 0, 0.7);
     padding: 20px;
     color: white;
