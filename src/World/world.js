@@ -169,7 +169,7 @@ function loadAllAssets() {
 
 function resolveGameData() {
     // Check if game data exists
-    if (gameData === null || (gameData && gameData.state !== "world")) {
+    if (gameData === null || (gameData && gameData.state !== "world" && gameData.state !== "win")) {
         console.log("No game data found in localStorage.");
         showMessage("Wrong game state!", 2);
         setTimeout(()=>{
